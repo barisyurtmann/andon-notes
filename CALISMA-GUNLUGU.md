@@ -126,6 +126,16 @@ Faz 2'de golden image kurulurken test edilecek.
 **Öğrenilen ders:** `sudo reboot` SSH oturumunu keser; altındaki komutlar çalışmaz.
 Reboot içeren adımlar bundan sonra iki parça halinde verilecek.
 
+### Aşama 2 — tamam
+
+Kabuk alıştırması Pi üzerinde yapıldı: `pwd`/`ls -la`/`cd`/`mkdir`, `nano` ile YAML yazma,
+`cat`/`cp`/`mv`/`rm`, `echo` ile `>` ve `>>` farkı, `free -m`/`df -h`/`systemctl status`.
+Çıktı paylaşılmadı (monitör başında çalışıldı), sahibin beyanına göre kavrandı.
+
+**Not:** Aşama 3'ten itibaren laptop'tan SSH ile çalışmak pratik olacak — çıktıyı kopyalamak
+ve kod yapıştırmak için. Üretim disiplini de zaten bu (GUI Pi'de değil laptop'ta).
+
 ### Sıradaki adım
 
-Öğrenme yolu **Aşama 2** — kabuk komutları.
+Öğrenme yolu **Aşama 3** — Python scriptinden `systemd` servisine. Projenin yazılım
+iskeleti burada başlıyor.
