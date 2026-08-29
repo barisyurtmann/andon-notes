@@ -192,7 +192,22 @@ ekranlarında tam ekran Chromium kiosk duracak.
 - **Erişim sadece üretim VLAN'ı içinden**
 - **Pi'ler GitHub'a sadece okuma yetkisiyle bağlanır** (read-only deploy key)
 
-## 9. Bağlantı koparsa
+## 9. `reboot` SSH oturumunu keser — normaldir
+
+`sudo reboot` yazdığın anda Pi kapanmaya başlar ve SSH bağlantısı **düşer**. Terminal
+penceresi kapanır veya `Connection closed by ... port 22` yazar. Bu bir hata değil.
+
+⚠️ **Sonucu:** `sudo reboot` ile başlayan bir komut bloğunu tek seferde yapıştıramazsın —
+altındaki komutlar hiç çalışmaz, çünkü onları çalıştıracak oturum ölmüştür.
+
+Doğru yöntem iki adımdır:
+1. `sudo reboot` (tek başına)
+2. ~30–60 sn bekle, `ssh andon@IP` ile yeniden bağlan, sonra ölçüm komutlarını çalıştır
+
+Aynı şey `poweroff`, ağ ayarı değiştiren komutlar ve `systemctl restart ssh` için de
+geçerlidir.
+
+## 10. Bağlantı koparsa
 
 SSH oturumu koparsa çalışan komut da ölür. Uzun süren işler için üç yol:
 

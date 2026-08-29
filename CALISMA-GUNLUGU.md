@@ -102,6 +102,30 @@ Asıl test §9.1 F: Chromium kiosk açık, en büyük çizim yüklü, 7 gün boy
 - Pi için read-only deploy key üretilecek
 - Öğrenme yolu Aşama 2 (kabuk alıştırması) hâlâ bekliyor
 
+### Bekleyen ölçüm — RTC penceresi
+
+**Soru:** açılıştan chrony senkronuna kaç saniye geçiyor? Cevap, filoya RTC pili alınıp
+alınmayacağını belirleyecek.
+
+**Yöntem (iki adımda, tek blok halinde yapıştırılamaz):**
+1. `sudo reboot`
+2. 30–60 sn bekle, tekrar SSH ile bağlan, sonra:
+```bash
+uptime -s
+timedatectl
+journalctl -b -u chrony | grep -i "selected\|synchron"
+```
+
+**Yorum kuralı:** pencere < ~15 sn ise pil gerekmiyor (o sırada makine de kapalı, ayrıca
+sunucu `received_at` damgası var). Uzunsa veya read-only root'ta saat çok geriye düşüyorsa
+pil almaya değer.
+
+**Bağlı [DOĞRULA]:** overlay FS açıkken `fake-hwclock` saati diske yazamıyor — davranışı
+Faz 2'de golden image kurulurken test edilecek.
+
+**Öğrenilen ders:** `sudo reboot` SSH oturumunu keser; altındaki komutlar çalışmaz.
+Reboot içeren adımlar bundan sonra iki parça halinde verilecek.
+
 ### Sıradaki adım
 
-Öğrenme yolu **Aşama 2** — kabuk komutları ve git akışı.
+Öğrenme yolu **Aşama 2** — kabuk komutları.
