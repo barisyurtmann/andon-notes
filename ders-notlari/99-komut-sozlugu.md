@@ -18,6 +18,7 @@ Tek satırlık karşılıklar. Detay için ilgili ders notuna bak.
 | `grep "kelime" DOSYA` | Dosya içinde ara |
 | `find . -name "*.yaml"` | Dosya ara |
 | `du -sh KLASÖR` | Klasör ne kadar yer kaplıyor |
+| `echo METİN` | Metni ekrana yaz (`>>` ile dosyaya ekler, `$DEGISKEN` içeriğini gösterir) |
 
 ## Linux — değiştirme
 
@@ -43,6 +44,10 @@ Tek satırlık karşılıklar. Detay için ilgili ders notuna bak.
 | ⭐ `hostname` / `whoami` | Makine adı / kullanıcı |
 | ⭐ `which KOMUT` | Kurulu mu, nerede |
 | `uptime` / `uname -a` | Ne zamandır açık / çekirdek bilgisi |
+| `uptime -s` | Açılış anının tam zamanı |
+| `timedatectl` | Saat, dilim, NTP senkron durumu |
+| `chronyc tracking` | NTP senkron detayları |
+| `dpkg -l` / `apt show PAKET` | Kurulu paketler / paket bilgisi |
 | `ps aux` / `top` | Süreçler / canlı izleme |
 | `kill PID` | Süreci durdur |
 | ⭐ `swapon --show` | Swap nerede: zram mı, dosya mı |

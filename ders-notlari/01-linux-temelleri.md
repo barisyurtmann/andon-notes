@@ -114,6 +114,31 @@ Linux'un en güçlü fikri: **küçük programları birbirine bağlamak.**
 journalctl -u andon-collector | grep -i error | tail -20
 ```
 
+### `echo` — metni ekrana veya dosyaya yazdır
+
+`echo` verdiğin metni olduğu gibi geri yazar. Tek başına işe yaramaz gibi görünür; asıl
+değeri **yönlendirme ve değişkenlerle** birlikte kullanılmasındadır.
+
+```bash
+echo "merhaba"                      # ekrana yazar
+echo $HOME                          # değişkenin içeriğini gösterir → /home/andon
+echo "not" >> gunluk.txt            # dosyanın SONUNA ekler
+echo "yeni icerik" > dosya.txt      # dosyanın ÜZERİNE yazar (eskisi gider)
+echo -n "satır sonu yok"            # sonuna yeni satır koymaz
+```
+
+Nerelerde kullanılır:
+- **Değişken kontrolü:** `echo $PATH` ile ortam değişkenine bakmak
+- **Tek satırlık dosya yazmak:** ayar dosyasına hızlıca bir satır eklemek
+- **Script içinde ilerleme mesajı:** "şu adım bitti" diye yazdırmak
+- **Bir komutun ne göndereceğini önce görmek:** `echo rm *.bak` yazıp çıktıya bakarsan,
+  `rm` gerçekten neyi silecekmiş görürsün. **Tehlikeli komutlardan önce iyi bir alışkanlık**
+
+**Otomasyon karşılığı:** HMI'ya mesaj basmak gibi. Program akışını görünür kılar.
+
+⚠️ `>` ile `>>` farkı: `>` dosyayı **sıfırlar**, `>>` **ekler**. Karıştırmak bir dosyanın
+içeriğini silmenin en hızlı yoludur.
+
 ## 6. `sudo` ve yetkiler
 
 `sudo` = "bu komutu yönetici (root) yetkisiyle çalıştır".
@@ -201,7 +226,38 @@ journalctl -u ssh -f              # canlı log
 `systemd` Linux'ta açılışta her şeyi başlatan programdır; bizim collector, Andon servisi ve
 ingest servisi de birer `systemd` servisi olacak.
 
-## 11. Paket yönetimi
+## 11. Paket ve paket yönetimi
+
+### "Paket" ne demek
+
+**Paket**, kurulmaya hazır bir yazılımın kutulanmış hali. İçinde şunlar var:
+
+- Programın kendisi (çalıştırılabilir dosyalar, kütüphaneler)
+- Nereye kurulacağı bilgisi
+- **Bağımlılık listesi:** "bu program çalışmak için şu paketlere de ihtiyaç duyar"
+- Kurulum/kaldırma sırasında çalışacak küçük scriptler
+- Sürüm numarası
+
+Debian'da paket dosyasının uzantısı `.deb`. Ama tek tek `.deb` indirmezsin — **depo
+(repository)** denen merkezî sunuculardan `apt` ile çekersin.
+
+**Otomasyon karşılığı:** vendor'un verdiği hazır kütüphane bloğu. İçini yazmazsın, projene
+eklersin, çalışır. Farkı: `apt` bir bloğu eklerken onun ihtiyaç duyduğu diğer blokları da
+kendisi bulup ekler.
+
+### Neden tek tek indirip kurmak yerine paket
+
+| Elle indirip kurmak | Paket yöneticisi |
+|---|---|
+| Bağımlılıkları sen bulursun | `apt` otomatik çözer |
+| Güncellemeyi sen takip edersin | `apt upgrade` hepsini birden |
+| Ne kurduğunu unutursun | `dpkg -l` listeler |
+| Kaldırırken artık dosya kalır | `apt remove` temiz kaldırır |
+| Kaynağı belirsiz | Depo imzalı, doğrulanmış |
+
+Bu, filo yönetiminin de temeli: 18 Pi'de aynı paketlerin aynı sürümü olacak (brief §3.6).
+
+### Komutlar
 
 ```bash
 sudo apt update                    # paket listesini tazele (kurulum yapmaz)
@@ -211,8 +267,22 @@ sudo apt remove PAKET
 apt search kelime
 ```
 
-`apt` = Debian'ın paket yöneticisi: merkezî depodan, bağımlılıklarıyla birlikte, tek komutla
-kurar. `update` ile `upgrade` farklıdır — birincisi listeyi tazeler, ikincisi asıl günceller.
+```bash
+apt list --installed | wc -l       # kaç paket kurulu
+dpkg -l | grep python3             # belirli bir paket kurulu mu
+apt show git                       # paket hakkında bilgi
+```
+
+⚠️ **`update` ile `upgrade` farklıdır.** `update` sadece "depoda neler var" listesini
+tazeler, hiçbir şey kurmaz. `upgrade` asıl güncellemeyi yapar. Bu yüzden hep birlikte
+yazılır: `sudo apt update && sudo apt upgrade`.
+
+### Python paketleri ayrı bir dünya
+
+`apt` sistem paketlerini yönetir; Python kütüphaneleri için **`pip`** vardır ve depoları
+farklıdır (PyPI). İkisi çakışabilir — bu yüzden yeni Debian sürümleri sistem Python'ına
+doğrudan `pip install` yapılmasını engeller. Doğrusu **sanal ortam** (`venv`) kullanmaktır
+(bkz. `09-python-servis-temelleri.md`).
 
 **Üretimde:** `apt` elle çalıştırılmayacak, Ansible playbook'u yapacak. Sebep: 18 node'un
 aynı sürümde kalması (brief §3.6).

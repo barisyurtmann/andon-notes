@@ -156,14 +156,95 @@ ama sebep beslemedir.
 - Ekranda sarı şimşek simgesi = düşük gerilim uyarısı
 - Üretimde hedef: 16 Pi'nin de ana pano UPS'inden bir dalgalanmayı atlatması (brief §4.4)
 
-## 9. RTC (gerçek zaman saati)
+## 9. RTC (gerçek zaman saati) ve pil
 
-Pi 5'te pil bağlantısı var ama pil opsiyoneldir; pil yoksa kart **kapalıyken zamanı unutur**
-ve açılışta 1970'ten başlar.
+### Durum
 
-Bu projede kritik: güç kesintisinden sonra açılan bir Pi, NTP ile senkron olana kadar yanlış
-zaman damgası üretir. Kural (brief §4.2): **chrony senkron olduğunu bildirmeden telemetri
-gönderilmez**; gönderilenler `ts_synced: false` ile işaretlenir.
+Pi 5'te **RTC donanımı kartın üstünde var**, ama onu besleyecek pil **yok** — pil ayrı satılan
+bir aksesuar. Pil takılı değilse kart kapalıyken zamanı unutur.
+
+### Pil olmadan ne oluyor
+
+Güç kesintisinden sonra açılan Pi'nin saati, NTP ile senkron olana kadar yanlıştır. Raspberry
+Pi OS'ta `fake-hwclock` diye bir mekanizma vardır: saati periyodik olarak diske yazar ve
+açılışta geri yükler — yani saat 1970'e düşmez, **son bilinen zamana** döner. Ama o zaman da
+kesinti süresi kadar geridedir.
+
+⚠️ **[DOĞRULA] Read-only root açıldığında `fake-hwclock` saati diske yazamaz.** Overlay FS
+etkinken bu mekanizmanın ne yaptığını bench'te test etmemiz gerekiyor. Test etmezsek "saat
+neden 6 ay geride" sorusuyla sahada karşılaşırız.
+
+### Pil ne kazandırır
+
+| | Pil yok | Pil var |
+|---|---|---|
+| Güç kesintisinden sonra saat | Yanlış, NTP'ye kadar | Doğru (RTC sürüyordu) |
+| Yanlış zaman damgası penceresi | Boot → chrony senkron arası | Yok denecek kadar az |
+| Sunucu geç açılırsa | Pencere uzar | Etkilenmez |
+| `ts_synced` kontrolü gerekli mi | **Evet** | **Yine evet** |
+
+### Neden yazılım disiplinini kaldırmıyor
+
+Pil, `ts_synced` kontrolünü **gereksiz kılmaz**:
+
+- Pil biter (şarj edilebilir, ama ömürlü) ve bittiğini **kimse fark etmez**
+- RTC de kayar; uzun süre NTP görmezse sapar
+- Yanlış saat bir veri bütünlüğü problemidir; **tespit mekanizması her hâlükârda gerekir**
+
+Zaten söz konusu yazılım karmaşık değil: servis başlangıcında `chronyc tracking` kontrolü ve
+mesaja bir `ts_synced` alanı — yaklaşık 10 satır. Yani "pil alalım da yazılım basit olsun"
+takası, umduğun şeyi satın almıyor. **Pil pencereyi daraltır, kontrolü kaldırmaz.**
+
+### Bir de şu var: o pencerede makine zaten çalışmıyor
+
+Elektrik kesintisinde Pi ile birlikte **makine de duruyor.** Boot ile NTP senkronu arasındaki
+birkaç saniyede üretilen telemetri, çoğunlukla "makine kapalı" bilgisidir. Ayrıca sunucu her
+mesaja kendi `received_at` damgasını da vuruyor (brief §12.2) — yani ikinci bir zaman
+referansımız zaten var.
+
+Asıl hassas olan Andon çağrılarının zaman damgasıdır (MTTA/MTTR), ama elektrik yokken Andon
+çağrısı da olmaz.
+
+### Karar: önce ölç, sonra al
+
+**Filoya 18 pil sipariş etmeden önce bench'te tek soruyu cevapla:** açılıştan chrony
+senkronuna kaç saniye geçiyor?
+
+```bash
+# Pi'yi yeniden başlat, sonra:
+uptime -s                                   # açılış anı
+journalctl -b -u chrony | grep -i "selected\|synchron"   # senkron anı
+timedatectl                                 # "System clock synchronized: yes" mi
+```
+
+| Ölçüm sonucu | Karar |
+|---|---|
+| Pencere < ~15 sn | Pil gerekmiyor. Makine zaten kapalı, `received_at` de var |
+| Pencere uzun (sunucu geç açılıyor, ağ geç geliyor) | Pil almaya değer |
+| Read-only root'ta saat çok geriye düşüyor | Pil almaya değer |
+
+Maliyet ölçeği: resmi RTC pili birim başına birkaç euro; 18 ünitede yüz euro mertebesi —
+filo bütçesinde önemsiz. Yani karar parasal değil, **gereksiz parça eklememe** kararı
+(brief'in "bu neyi kaldırıyor?" testi). Pil hiçbir şeyi kaldırmıyorsa eklemeyelim; gerçek
+bir pencereyi kapatıyorsa ekleyelim.
+
+**Bench için 1–2 adet alıp denemek her hâlükârda mantıklı.**
+
+### Alınırsa: teknik detaylar
+
+- **Resmi ürün:** Raspberry Pi RTC Battery — şarj edilebilir lityum manganez düğme pil,
+  ucunda hazır **2 pinli JST-SH** fiş. Kartın **J5 (BAT)** konnektörüne takılır.
+- **Şarj varsayılan olarak KAPALIDIR.** `/boot/firmware/config.txt` içine şu satır eklenmeli:
+  ```
+  dtparam=rtc_bbat_vchg=3000000
+  ```
+  (3.0 V, mikrovolt cinsinden.) Reboot sonrası sysfs'ten doğrulanır. **Bu satır golden
+  image'a girecek** — yoksa piller yavaş yavaş biter ve kimse fark etmez.
+- **Bonus özellik:** RTC ile Pi'yi düşük güç moduna alıp belirli bir saatte **otomatik
+  uyandırmak** mümkün (`/sys/class/rtc/rtc0/wakealarm`). Bu projede gerekmiyor.
+
+⚠️ Şarj parametresinin tam yazımını ve gerilim değerini, sipariş verdikten sonra resmi
+Raspberry Pi RTC dokümanından teyit et.
 
 ## 10. SD kart ömrü
 
