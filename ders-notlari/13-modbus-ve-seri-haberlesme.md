@@ -1,0 +1,200 @@
+# Modbus ve Seri Haberleşme — Linux Tarafından Bakış
+
+Bu konunun otomasyon tarafını zaten biliyorsun. Bu not **Linux ve Python tarafında** neyin
+nasıl göründüğünü anlatıyor.
+
+## 1. Fiziksel katman: RS-485
+
+- **Fark sinyalli (differential)**, iki telli: A ve B. Gürültüye dayanıklı, uzun mesafe
+- **Çok noktalı (multidrop):** aynı hatta birden fazla cihaz olabilir
+- **Yarı çift yönlü (half-duplex):** aynı anda ya konuşulur ya dinlenir
+- Uzun hatlarda uçlara **120 Ω sonlandırma direnci** gerekir
+
+**Bu projede hat çok kısa:** Pi pano içinde, PLC'nin yanında, ~1 m kablo (brief §3.1). Yani
+sonlandırma ve gürültü sorunları büyük ölçüde yok. Her Pi kendi makinesine bire bir bağlı —
+segment paylaşımı yok.
+
+**USB-RS485 adaptörü** Linux'ta bir seri port olarak görünür: `/dev/ttyUSB0`.
+
+## 2. Seri port parametreleri
+
+İki taraf **birebir aynı** olmalı, yoksa çöp okursun:
+
+| Parametre | Bizim seçim | Not |
+|---|---|---|
+| Baud rate | 19200 veya 38400 | Hız. Yüksek = hızlı ama gürültüye hassas |
+| Data bits | 8 | |
+| Parity | N (yok) | |
+| Stop bits | 1 | |
+
+Kısaca **8-N-1**. Brief §5.3'ün kararı: boş COM2 portunda ayarı sen belirlediğin için
+**her makinede aynı yapılandırma** kullanılacak — mevcut ASCII/RTU karmaşası böylece
+problem olmaktan çıkıyor.
+
+## 3. Modbus RTU vs TCP vs ASCII
+
+| Tip | Taşıma | Bu projede |
+|---|---|---|
+| **Modbus RTU** | Seri (RS-485), ikili (binary) çerçeve | Grup 1–2: Delta DVP-SS2 |
+| **Modbus TCP** | Ethernet, port 502 | Grup 3: AS218TX |
+| **Modbus ASCII** | Seri, metin çerçeve. Daha yavaş | Kullanmayacağız |
+
+Protokol mantığı üçünde de aynı; sadece paketleme farklı. `pymodbus` üçünü de yapar —
+S7-1500 üzerinden gitseydik ASCII cihazlara erişemeyecektik (brief §3.2).
+
+## 4. Master / slave ve adresleme
+
+- **Master** soru sorar, **slave** cevap verir. Bizim collector master'dır.
+- Her slave'in bir **istasyon adresi** vardır (1–247).
+- **Kural (brief §5.3):** slave adresi hat içinde 1'den başlayarak sırayla verilir. Bu adres
+  `machine_id` ile eşleşmek **zorunda değildir** — `machine_id` global ve anlamsızdır,
+  slave adresi yerel bir haberleşme detayıdır. Etikete ikisini de yaz.
+
+## 5. Register tipleri ve adresler
+
+| Tip | Ne | Fonksiyon kodu |
+|---|---|---|
+| Coil | Tek bit, okunur/yazılır | 01 / 05 |
+| Discrete input | Tek bit, sadece okunur | 02 |
+| Input register | 16 bit, sadece okunur | 04 |
+| **Holding register** | 16 bit, okunur/yazılır | **03 / 06** |
+
+Bizim okuyacağımız D register'ları **holding register**'dır.
+
+### Delta DVP adres tabanları — **[DOĞRULA]**
+
+| Cihaz | Modbus base |
+|---|---|
+| X girişler | 0x0400 |
+| Y çıkışlar | 0x0500 |
+| T | 0x0600 |
+| M röleler | 0x0800 |
+| C sayaçlar | 0x0E00 |
+| D register | 0x1000 |
+
+Yani `D0` = 0x1000, `D300` = 0x112C.
+
+⚠️ Bu tablo hafızadan yazıldı, **DVP-SS2 manuelinden teyit edilmedi.** Sadece Delta DVP için
+geçerlidir; başka bir marka geldiğinde hiçbir işe yaramaz.
+
+### Off-by-one tuzağı
+
+Modbus fonksiyon kodları adresleri **0-tabanlı** kullanır, ama pek çok doküman ve araç
+**1-tabanlı** (40001 tarzı) gösterir. `pymodbus` 0-tabanlı ister.
+
+**Kural:** bench'te bilinen bir D register'ı okuyup **beklenen değeri gördüğünü**
+doğrulamadan hiçbir adresi kesin kabul etme.
+
+## 6. 32-bit değerler — iki tuzak
+
+Sayaçlar 32-bit, register'lar 16-bit. Yani bir sayaç **iki register**tir.
+
+### Tuzak 1: word sırası
+
+Delta'da 32-bit değer `D300` (düşük word) ve `D301` (yüksek word) olarak tutulur. Modbus
+üzerinden okurken sıranın doğru olduğunu **bench'te bilinen bir değerle** doğrula.
+
+**Yanlış almak sessiz ve çok pahalı bir hatadır:** sayaç normal görünür, sadece rollover
+anında saçmalar ve o zaman kimse sebebini anlamaz.
+
+**Test:** PLC'ye `0x00010002` gibi asimetrik bir değer yaz, okuduğunu karşılaştır.
+
+### Tuzak 2: atomik okuma
+
+İki word'ü **ayrı** Modbus isteklerinde okursan, tam iki okuma arasında sayaç artarsa
+tutarsız değer alırsın (düşük word yeni, yüksek word eski).
+
+**Çözüm: tek istekte oku.**
+```python
+rr = client.read_holding_registers(address=0x112C, count=2, slave=1)
+```
+Collector kodunda bu bir yorum satırıyla işaretlenecek.
+
+### Rollover
+
+32-bit sayaç `4294967295`'ten `0`'a döner. Fark hesabı negatif çıkarsa `+4294967296`
+eklenir — bu düzeltme **sunucuda**, SQL'de yapılır (bkz. `12-sql-ve-timescaledb.md`).
+
+## 7. Serbest akan sayaç kuralı
+
+**Sayaçlar PLC'den asla sıfırlanmaz** (brief Karar #3). Farkları sunucuda hesaplarız.
+
+**Neden:** sıfırlanan bir sayaçta bir poll kaçarsa parçalar **sessizce kaybolur**. Serbest
+akan sayaçta iki saat ölü kalan bir Pi döndüğünde sayacı okur, son bildiği değerle
+karşılaştırır ve fark bozulmamıştır. Sistem kendini iyileştirir.
+
+Sıfırlanan sayacı olan makineler config'de `resetting: true` ile işaretlenir — bu bir
+istisnadır, kural değil.
+
+## 8. Python tarafı — `pymodbus`
+
+```python
+from pymodbus.client import ModbusSerialClient
+
+client = ModbusSerialClient(
+    port="/dev/andon-rs485",   # udev takma adı
+    baudrate=19200,
+    bytesize=8, parity="N", stopbits=1,
+    timeout=1,
+)
+client.connect()
+
+rr = client.read_holding_registers(address=0x112C, count=2, slave=1)
+if rr.isError():
+    log.warning("read failed")
+else:
+    lo, hi = rr.registers          # word sirasi DOGRULANACAK
+    parts_total = (hi << 16) | lo
+```
+
+`(hi << 16) | lo` = yüksek word'ü 16 bit sola kaydır, düşük word'le birleştir → 32-bit sayı.
+
+### Simülatör — donanımsız geliştirme
+
+`pymodbus` bir **slave simülatörü** de içerir. §5.1 register haritasını taklit eden bir
+simülatör yazarsan (sayaç artıran, durum değiştiren, arıza kodu üreten), collector'ı, ingest
+servisini, veritabanı şemasını ve OEE SQL'ini **hiç PLC'ye dokunmadan** geliştirebilirsin
+(brief §14.1).
+
+Ayrıca sadece simülatörle yapılabilecek testler: rollover, ağ kesintisi, geç gelen veri.
+Gerçek PLC'de sayacı 0xFFFFFFF0'a getiremezsin.
+
+## 9. Linux tarafı — seri port
+
+```bash
+ls -l /dev/ttyUSB*                    # adaptör görünüyor mu
+dmesg | tail -20                      # az önce takılan cihaz ne olarak tanındı
+sudo usermod -aG dialout andon        # kullanıcıya seri port izni (sonra yeniden giriş)
+```
+
+**udev kuralı zorunlu:** `/dev/ttyUSB0` reboot'lar arasında sabit **değildir**. Adaptörün
+seri numarasına sabit bir isim bağlanır: `/dev/andon-rs485` (brief §9.1 adım B).
+
+## 10. En pahalı hata — yazmadan önce oku
+
+**Sıra disiplini (brief §5.5):**
+
+1. COM2'yi yapılandır
+2. Adaptörü bağla
+3. **Mevcut bir D register'ı OKU** ve beklediğin değeri gördüğünü doğrula
+4. *Ancak ondan sonra* sayaç rungları yükle
+
+**Doğrulanmamış bir adrese üretim PLC'sinde yazmak, bu projedeki en pahalı hatadır.**
+
+Ayrıca DVP'ye download **STOP modu** gerektirir — yani 13 makinede planlı duruş. Bu teknik
+olmaktan çok bir planlama problemi ve gecikmenin en olası kaynağıdır (brief §5.5).
+
+## 11. PLC'ye hiç dokunulamayan makineler
+
+Grup 4 (program yok, vendor desteği yok) için makineyi değil, **davranışını** okuyoruz
+(brief §2):
+
+- **Kule lambası tap'i** — optokuplörle Pi GPIO'ya. Çalışıyor/uyarı/arıza durumu, ~5 €
+- **Fotoelektrik/endüktif sensör** — çıkış oluğunda parça sayımı, ~30 €
+- **Akım trafosu (CT) klempi** — motor beslemesinde çalışıyor/boşta ayrımı
+
+**Bu tekniği her makine için yedekte tut** — PLC değişikliği politik veya pratik olarak
+imkânsız çıkan her makinede aynı yol geçerli.
+
+⚠️ Kule lambası tap'i **emniyet devresine müdahale etmez**: optokuplör lamba hattına paralel
+bağlanır, akım çekmez, arıza durumunda lamba davranışını değiştirmez (brief §13.4).

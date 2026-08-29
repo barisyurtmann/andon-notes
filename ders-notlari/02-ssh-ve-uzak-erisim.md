@@ -1,24 +1,30 @@
 # SSH ve Uzaktan Erişim
 
-## SSH nedir
+## 1. SSH nedir
 
 **S**ecure **Sh**ell. Başka bir bilgisayarda komut çalıştırmanı sağlayan şifreli bağlantı.
+Varsayılan portu **22**.
 
 **Önemli:** SSH karşı tarafa **klavye uzatır, ekran uzatmaz.** Pi'nin masaüstü kaybolmaz,
 monitöründe durmaya devam eder — sen sadece metin kanalından bağlanırsın.
 
-**Otomasyon karşılığı:** PLC'ye programlama kablosuyla bağlanıp online olmak gibi; ama
-kablo yerine ağ, ve tek bir program yerine tüm makine.
+**Otomasyon karşılığı:** PLC'ye programlama kablosuyla bağlanıp online olmak gibi; ama kablo
+yerine ağ, ve tek bir program yerine tüm makine.
 
-## Bağlanma
+**Öncesi neydi:** telnet ve FTP şifresizdi — parola ağda düz metin geçerdi. SSH bunların
+şifreli yerine geçenidir. Bugün telnet kullanan bir cihaz görürsen bu bir güvenlik notudur.
+
+## 2. Bağlanma
 
 ```bash
 ssh andon@192.168.0.166
+ssh andon@192.168.0.166 -p 2222     # farklı port
+ssh andon@192.168.0.166 "free -m"   # bağlan, tek komutu çalıştır, çık
 ```
 
-Kalıp: `ssh KULLANICI@ADRES`.
+Kalıp: `ssh KULLANICI@ADRES`. Çıkmak için `exit` veya `Ctrl+D`.
 
-### İlk bağlantıda çıkan parmak izi sorusu
+### İlk bağlantıdaki parmak izi sorusu
 
 ```
 The authenticity of host '192.168.0.166' can't be established.
@@ -27,31 +33,32 @@ Are you sure you want to continue connecting (yes/no)?
 ```
 
 Tam olarak **`yes`** yazılır — `y` kabul edilmez. SSH karşıdaki makinenin kimlik parmak izini
-henüz bilmiyor, sana gösterip onaylatıyor. `yes` dedikten sonra parmak izi laptop'ındaki
+henüz bilmiyor, sana gösterip onaylatıyor. Onayladıktan sonra parmak izi
 `~/.ssh/known_hosts` dosyasına kaydedilir ve bir daha sorulmaz.
 
-⚠️ **Aynı adreste bu uyarı tekrar çıkarsa dur.** İki ihtimal var: SD kart yeniden imajlandı
-(normal), ya da o IP'de artık başka bir makine var (normal değil). Bu mekanizma tam olarak
-ikincisini yakalamak için var.
+**Bu neye yarıyor:** ağda araya girip kendini senin Pi'n gibi tanıtan bir makine olursa
+parmak izi tutmaz ve SSH bağırarak uyarır. Buna "man-in-the-middle" saldırısı denir.
+
+⚠️ **Aynı adreste bu uyarı tekrar çıkarsa dur.** İki ihtimal: SD kart yeniden imajlandı
+(normal), ya da o IP'de artık başka bir makine var (normal değil).
+
+Kart yeniden imajlandıysa eski kaydı silmek gerekir:
+```bash
+ssh-keygen -R 192.168.0.166
+```
 
 ### Parola yazarken ekranda hiçbir şey görünmez
 
-Yıldız yok, imleç ilerlemez, satır boş kalır. **Hata değil, kasıtlı** — omzunun üstünden
-bakan biri parolanın kaç karakter olduğunu bile göremesin diye. Körlemesine yaz, Enter'a bas.
-`sudo` da parolayı böyle sorar.
+Yıldız yok, imleç ilerlemez. **Hata değil, kasıtlı** — parolanın uzunluğu bile görünmesin
+diye. Körlemesine yaz, Enter'a bas. `sudo` da böyle davranır.
 
-## SSH key — parola yerine anahtar
+## 3. Anahtar çiftleri (SSH key)
 
-Parolayla giriş çalışır ama üretimde kapatılacak (brief §13.1). Yerine **anahtar çifti**
-kullanılır.
+Parolayla giriş çalışır ama üretimde kapatılacak (brief §13.1). Yerine **anahtar çifti**.
 
-```bash
-ssh-keygen -t ed25519 -C "andon-bench"
-```
+### Nasıl çalışır
 
-Üç soru sorar: dosya yolu (Enter = varsayılan), passphrase (Enter = boş), tekrar (Enter).
-
-İki dosya oluşur:
+İki dosya üretilir ve matematiksel olarak birbirine bağlıdır:
 
 | Dosya | Nedir | Kural |
 |---|---|---|
@@ -59,29 +66,48 @@ ssh-keygen -t ed25519 -C "andon-bench"
 | `~/.ssh/id_ed25519.pub` | **Açık anahtar** | Paylaşılmak için var |
 
 **Zihin modeli:** açık anahtar bir kilittir, özel anahtar onu açan tek anahtardır. Kilidi
-istediğin kapıya takarsın (sunucu, GitHub); anahtar sende kalır.
+istediğin kapıya takarsın (sunucu, GitHub); anahtar sende kalır. Kilidi herkes görebilir,
+işe yaramaz.
 
-Açık anahtarı görmek için:
+Sunucu tarafında açık anahtarlar `~/.ssh/authorized_keys` dosyasında durur. Giriş sırasında
+sunucu bir soru sorar, sadece özel anahtarı olan doğru cevabı üretebilir — **parola ağa hiç
+çıkmaz.**
+
+### Üretme
 
 ```bash
-cat ~/.ssh/id_ed25519.pub
+ssh-keygen -t ed25519 -C "andon-bench"
 ```
 
-Tek satırlık çıktı `ssh-ed25519` ile başlar, sondaki yorum (`andon-bench`) sadece hangi
-makinenin anahtarı olduğunu hatırlamak içindir.
+- `-t ed25519` = anahtar tipi. Modern, kısa, hızlı. Eski `rsa`'ya göre daha iyi
+- `-C "..."` = yorum. Sadece hangi makinenin anahtarı olduğunu hatırlamak için
+- Üç soru: dosya yolu (Enter), passphrase (Enter = boş), tekrar (Enter)
 
-### `ed25519` neden
-
-Modern, kısa ve hızlı bir anahtar tipi. Eski `rsa`'ya göre daha güvenli ve daha küçük.
-Bir sebep yoksa hep bunu kullan.
+```bash
+cat ~/.ssh/id_ed25519.pub    # açık anahtarı göster
+```
 
 ### Passphrase
 
-Anahtarın kendisini koruyan ikinci bir parola. Boş bırakırsan her bağlantıda parola sorulmaz
-(pratik), ama anahtar dosyası çalınırsa doğrudan kullanılabilir. Bench makinesinde ve kendi
-repo'na erişen bir anahtar için boş kabul edilebilir; üretim sunucusunda değil.
+Anahtar dosyasının kendisini koruyan ikinci bir parola. Boş bırakırsan her bağlantıda parola
+sorulmaz (pratik), ama anahtar dosyası çalınırsa doğrudan kullanılabilir.
 
-## Bağlantıyı test etme
+- Bench makinesi, kendi repo'na erişen anahtar → boş kabul edilebilir
+- Üretim sunucusu, paylaşılan ortam → passphrase konur, `ssh-agent` ile bir kez girilir
+
+### Açık anahtarı sunucuya taşıma
+
+```bash
+ssh-copy-id andon@192.168.0.166
+```
+
+Bu komut açık anahtarı karşı tarafın `authorized_keys` dosyasına ekler. Elle de yapılabilir
+ama bu komut doğru izinleri de ayarlar.
+
+### Test etme — sıra önemli
+
+**Önce key ile girişi test et, ancak sonra parola girişini kapat.** Ters sırada yaparsan
+Pi'ye erişimini kaybedersin (kurtarma: monitör+klavye ile fiziksel giriş).
 
 ```bash
 ssh -T git@github.com
@@ -93,29 +119,87 @@ ssh -T git@github.com
 Hi KULLANICI! You've successfully authenticated, but GitHub does not provide shell access.
 ```
 
-Bu **başarı** mesajıdır. "Giriş yaptın ama burada komut çalıştıramazsın" diyor — zaten
-istediğimiz de o.
+Bu **başarı** mesajıdır.
 
-## Uzak masaüstü değil, uzak editör
+### Parola girişini kapatma
+
+Sunucuda `/etc/ssh/sshd_config` dosyasında:
+
+```
+PasswordAuthentication no
+PermitRootLogin no
+```
+
+Sonra `sudo systemctl restart ssh`. **Bu, brief §13.1'in gereğidir ve Aşama 4'te birlikte
+yapılacak.**
+
+## 4. `~/.ssh/config` — kısayol dosyası
+
+Uzun adresleri her seferinde yazmamak için:
+
+```
+Host bench
+    HostName 192.168.0.166
+    User andon
+    IdentityFile ~/.ssh/id_ed25519
+```
+
+Artık `ssh bench` yeterli. 16 makinelik filoda bu dosya hayat kurtarır.
+
+## 5. Dosya kopyalama
+
+| Komut | Ne yapar |
+|---|---|
+| `scp dosya andon@IP:/home/andon/` | Yerelden uzağa kopyala |
+| `scp andon@IP:/home/andon/dosya .` | Uzaktan yerele |
+| `rsync -av klasor/ andon@IP:/hedef/` | Klasör senkronize et (sadece değişenleri gönderir) |
+
+**Bu projede az kullanacağız:** kod `git pull` ile gidecek, dağıtımı Ansible yapacak
+(brief Karar #27). `scp` tek seferlik işler için.
+
+## 6. Port yönlendirme — ne olduğunu bil, şimdilik kullanma
+
+```bash
+ssh -L 3000:localhost:3000 andon@IP
+```
+
+Uzaktaki bir servisi (örneğin Grafana) kendi bilgisayarında açıkmış gibi gösterir. İleride
+sunucudaki Grafana'ya ofisten bakarken işe yarayabilir. Şimdi gerek yok.
+
+## 7. Uzak masaüstü değil, uzak editör
 
 "GUI Pi'de değil laptop'ta olsun" derken kastedilen uzak masaüstü **değil**:
 
 | Ne istiyorum | Nasıl |
 |---|---|
-| Komut çalıştır, log oku, servis yönet | SSH — üretimde de tek yol bu |
+| Komut çalıştır, log oku, servis yönet | SSH — üretimde de tek yol |
 | Dosya düzenle, kod yaz, klasör ağacını gör | **VS Code Remote-SSH** — editör laptop'ta, dosyalar Pi'de |
 | Pi'nin masaüstünü görmek | Monitörü var |
 
-Teknik olarak mümkün ama bu projede kullanmayacağımız iki yol:
-- **X11 forwarding** (`ssh -X`) — tek bir grafik pencereyi laptop'a taşır. Yavaş, gereksiz.
-- **VNC** — tam masaüstünü verir. Yerel ağda politika ihlali değil ama filoda kapalı olacak:
-  bir Pi'ye masaüstünden bağlanıp elle düzeltme yapmak o üniteyi diğerlerinden farklılaştırır.
+Teknik olarak mümkün ama kullanmayacağımız iki yol:
+- **X11 forwarding** (`ssh -X`) — tek bir grafik pencereyi taşır. Yavaş, gereksiz.
+- **VNC** — tam masaüstü. Yerel ağda politika ihlali değil ama filoda kapalı olacak: bir
+  Pi'ye masaüstünden bağlanıp elle düzeltme yapmak o üniteyi diğerlerinden farklılaştırır.
 
-**Neden önemli:** üretimdeki 16 Pi'de zaten bakabileceğin bir masaüstü olmayacak — ekranlarında
-tam ekran Chromium kiosk duracak. Metin üzerinden çalışmayı öğrenmek zorluk değil, doğrudan
-üretim pratiği.
+**Neden önemli:** üretimdeki 16 Pi'de bakabileceğin bir masaüstü zaten olmayacak —
+ekranlarında tam ekran Chromium kiosk duracak.
 
-## Bağlantı kesilirse
+## 8. Bu projede geçerli kurallar (brief §13.1)
 
-SSH oturumu koparsa çalışan komut da ölür. Uzun süren işler için `systemd` servisi
-(ilerideki not) veya `tmux` kullanılır — sırası gelince.
+- **Sadece key ile giriş.** Parola girişi ve root login kapalı
+- **Vendor bulut tüneli yok** — Raspberry Pi Connect dahil (Karar #25). Dışarıya kalıcı
+  bağlantı açar, gerektiğinde vendor relay'i üzerinden geçer, erişimi şahsi hesaba bağlar
+- **Erişim sadece üretim VLAN'ı içinden**
+- **Pi'ler GitHub'a sadece okuma yetkisiyle bağlanır** (read-only deploy key)
+
+## 9. Bağlantı koparsa
+
+SSH oturumu koparsa çalışan komut da ölür. Uzun süren işler için üç yol:
+
+1. **`systemd` servisi** — kalıcı işler için doğru yol (bkz. `08-systemd-servisler.md`)
+2. **`tmux`** — kopan oturumu geri bağlayabildiğin sanal terminal. `tmux` ile başlat,
+   `Ctrl+B` sonra `D` ile ayrıl, `tmux attach` ile geri dön
+3. **`nohup komut &`** — kaba ama işe yarar
+
+Bu projede birincisini kullanacağız; ikincisi elle uzun iş yaparken (`apt upgrade` gibi) işe
+yarar.

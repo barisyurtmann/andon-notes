@@ -67,6 +67,11 @@ Asıl test §9.1 F: Chromium kiosk açık, en büyük çizim yüklü, 7 gün boy
 - `ders-notlari/` klasörü açıldı: Linux temelleri, SSH, git, Raspberry Pi donanım ve
   yazılım, YAML, komut sözlüğü. Kural: buraya bir konu **fiilen kullanıldıktan sonra**
   girer; dosyalar her oturumda büyür.
+- **Ders notlarının kapsamı genişletildi:** sadece kullandığımız komutlar değil, her
+  konunun **temeli** baştan atıldı. 16 dosya: Linux, SSH, git, Pi donanım/yazılım, YAML,
+  ağ, systemd, Python, MQTT, Docker, SQL/TimescaleDB, Modbus/RS-485, Ansible, Grafana,
+  komut sözlüğü. Her dosyanın başında "ne zaman lazım" yazıyor; ileri fazların notları
+  hazır bekliyor.
 
 ### Kararlar
 
