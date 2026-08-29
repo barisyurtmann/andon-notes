@@ -64,6 +64,9 @@ Asıl test §9.1 F: Chromium kiosk açık, en büyük çizim yüklü, 7 gün boy
   `andon-notes` repo'ları burada oluşturuldu ve ilk commit'leri atıldı.
 - `machines.yaml` PC'ye taşındı — artık tek doğru kopyası burada.
 - Bu çalışma günlüğü başlatıldı.
+- `ders-notlari/` klasörü açıldı: Linux temelleri, SSH, git, Raspberry Pi donanım ve
+  yazılım, YAML, komut sözlüğü. Kural: buraya bir konu **fiilen kullanıldıktan sonra**
+  girer; dosyalar her oturumda büyür.
 
 ### Kararlar
 
