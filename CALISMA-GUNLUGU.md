@@ -157,6 +157,22 @@ taahhüdü çöker. Bench ünitesi için geçerli değil.
 switch portunun VLAN'ı belirleyicidir. Bizim seçimimiz Ethernet + MAC'e DHCP rezervasyonu:
 Pi yine DHCP ile sorar, cevap hep aynı gelir, ayar tek tabloda durur.
 
+**Switch hakkında netleşen:** switch IP dağıtmaz. Yönetilmeyen switch bulunduğu ağı
+çoğaltır — uplink'i üretim VLAN'ındaysa ona takılan her cihaz `192.168.5.x` alır.
+Yönetilebilir switch'in IP'si sadece kendi yönetim arayüzü içindir.
+
+**İki somut bulgu:**
+1. **16 port yetmiyor.** 16 Pi + 1 sunucu + 1 uplink = 18 port → **24 portlu alınacak.**
+2. **Model isimleri yanıltıcı:** TL-SG1016 yönetilmeyen, TL-SG1016**DE** Easy Smart (VLAN'lı).
+   Brief §3.1 yönetilebilir diyor; gerekçe port bazlı teşhis (gece 02:00'de "hangi port
+   link görmüyor" sorusu), portu uzaktan kapatabilme, VLAN esnekliği, IT'nin envanteri.
+
+**IT'ye sorulacak yeni soru:** üretim VLAN'ında **DHCP sunucusu olacak mı?** Tam izole bir
+VLAN'da router bacağı yoksa DHCP de yoktur; o zaman ya statik IP'ye dönülür ya da DHCP kendi
+sunucumuzda (`dnsmasq`) çalışır. Bu, brief §12.4'teki rezervasyon kararını yeniden açar.
+
+**PoE açık:** brief §4.4'teki PoE seçeneği seçilirse switch de PoE'li olmalı. Karar verilmedi.
+
 **Zamanlama:** bu konuşma **kablolamadan önce** yapılacak. Erişim hiç açılmazsa alternatif
 panonun yanında laptop'la çalışmak — 16 makinede ciddi yavaşlama.
 

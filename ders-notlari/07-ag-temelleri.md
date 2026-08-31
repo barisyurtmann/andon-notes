@@ -86,6 +86,61 @@ olması sorun değil — orası geliştirme makinesi.
 cevap vermedi.** Sebepleri: port yanlış VLAN'da, kablo takılı değil, o VLAN'da DHCP sunucusu
 yok, ya da havuz dolu.
 
+### Switch ne yapar, ne yapmaz
+
+Switch **katman 2** bir cihazdır: gelen ethernet çerçevesini MAC adresine bakıp doğru porta
+iletir. IP ile işi yoktur — **switch IP dağıtmaz.**
+
+- **Yönetilmeyen (unmanaged) switch'in IP'si bile yoktur.** Takarsın, çalışır. Bulunduğu ağı
+  çoğaltır: uplink'i hangi VLAN'daysa, ona takılan her cihaz o VLAN'dadır
+- **Yönetilebilir switch'in bir IP'si vardır**, ama o sadece *switch'in kendi yönetim
+  arayüzüne* bağlanmak içindir. Takılı cihazlara verilmez
+
+IP'yi dağıtan şey **DHCP sunucusudur** — genelde o VLAN'a bakan router/firewall.
+
+**Pratik sonuç:** IT tek bir portu üretim VLAN'ına alır, oraya bir switch takarsın, o
+switch'e takılan her şey `192.168.5.x` alır. Switch bir şey "atamıyor", bulunduğu ağı
+yayıyor.
+
+⚠️ Bedeli: o switch'e takılan **her şey** üretim ağına girer. Pano kilitli olmalı.
+
+### Model isimleri yanıltıcı olabilir
+
+| Model | Tip | VLAN | Yönetim |
+|---|---|---|---|
+| TL-SG1016 / TL-SG1016D | Yönetilmeyen | Yok | Yok, IP'si yok |
+| TL-SG1016**DE** | "Easy Smart" | Var (802.1Q) | Web arayüzü, yönetim IP'si |
+
+Benzer isimler farklı cihazlar. **Brief §3.1 yönetilebilir switch diyor** ve gerekçeleri:
+
+- **Port bazlı teşhis.** Gece 02:00'de "7 numaralı makine sustu" dediğinde, o portun link
+  görüp görmediğine ve hata sayacına bakabilmek teşhisin yarısıdır
+- **Portu uzaktan kapatabilmek** — yanlış cihaz takıldığında
+- **VLAN esnekliği** — ileride sunucuyu ayrı VLAN'a almak gerekirse switch değişmez
+- **IT'nin tercihi** — yönetilmeyen kutu, envanterde görünmeyen kör noktadır
+
+### Port sayısı hesabı
+
+```
+16 Pi + 1 sunucu + 1 uplink = 18 port
+```
+
+**16 portlu switch bu filoya yetmez.** 24 portlu alınacak — yedek port kalır ve ikinci hat
+geldiğinde yer olur.
+
+**PoE notu:** brief §4.4'te 16 Pi'yi tek UPS'ten beslemek için PoE seçeneği var. PoE
+seçilirse switch de PoE'li olmalı (`PE`/`P` sonlu modeller). Bu karar henüz verilmedi.
+
+### IT'ye sorulacak kritik soru: DHCP nerede
+
+| Senaryo | Sonuç |
+|---|---|
+| VLAN firewall/router üzerinde tanımlı, DHCP orada | Normal akış: MAC rezervasyonu yapılır |
+| VLAN tamamen izole, router bacağı yok | **DHCP yok.** Ya statik IP'ye dönülür ya da DHCP kendi sunucumuzda çalıştırılır (`dnsmasq`) |
+
+İkinci senaryo, IT'nin "tam izolasyon" cevabından çıkabilir ve brief §12.4'teki "statik IP
+değil, rezervasyon" kararını yeniden açar. **Kablolamadan önce sorulacak.**
+
 ## 3. MAC adresi
 
 Ağ kartının donanımsal kimliği: `dc:a6:32:xx:xx:xx`. Fabrikada yazılır, değişmez.
