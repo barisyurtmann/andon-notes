@@ -44,7 +44,47 @@ saklı olması tek kişilik ekipte bakım kâbusudur.
 
 **DHCP nasıl çalışır:** cihaz açılınca "bana bir adres verin" diye bağırır, DHCP sunucusu
 (genelde router) havuzdan bir adres verir. **Rezervasyon** = "bu MAC adresine hep şu IP'yi
-ver" kaydı.
+ver" kaydı. Yani cihaz yine DHCP ile soruyor, sadece cevap hep aynı geliyor.
+
+⚠️ **Rezervasyon o VLAN'ın DHCP sunucusunda durur.** Pi'yi başka bir VLAN'daki porta
+takarsan rezervasyon geçerli olmaz; o ağın havuzundan rastgele bir adres alır.
+
+### IP adresi cihazdan değil, ağdan gelir
+
+Bir cihaz "ben şu IP olayım" diye karar vermez. Bir ağa katılır, o ağın **DHCP sunucusu**
+ona o ağa ait bir adres verir. Doğru soru "Pi ne alır" değil, **"Pi hangi ağa katıldı"**.
+
+**Wi-Fi:** bir SSID aslında **bir VLAN'a açılan kablosuz kapıdır.** IT bir SSID'yi istediği
+VLAN'a bağlayabilir. SSID ofis VLAN'ına bağlıysa cihaz ofis adresi alır; üretim VLAN'ına
+bağlıysa üretim adresi. Aynı SSID adı, farklı eşleme, farklı sonuç.
+
+**Ethernet:** belirleyici olan **switch portunun hangi VLAN'a atandığıdır.** Aynı kablo,
+aynı cihaz, farklı port → farklı ağ, farklı IP.
+
+**Bu projede:** üretimdeki Pi'ler **Ethernet** kullanır (brief §3.1) — fabrikada kablosuz
+kararsızdır ve gecikme öngörülemez; ayrıca monitör için zaten aynı güzergâhtan kablo gidiyor.
+
+### ⚠️ Bir Pi iki ağa birden bağlı olmamalı
+
+Bir Pi hem ofis Wi-Fi'ına (internetli) hem üretim Ethernet'ine bağlıysa, **o Pi iki ağı
+köprülemiş olur** ve "üretim ağında internet yok" taahhüdü (brief §3.6) fiilen çöker.
+
+**Kural: üretime giden golden image'da Wi-Fi kapalı olacak.** Bench ünitesinin Wi-Fi'da
+olması sorun değil — orası geliştirme makinesi.
+
+### Pratikte hangi ortamda ne olacak
+
+| Ortam | Bağlantı | IP nasıl gelir |
+|---|---|---|
+| Bench (Faz 0–1) | Ofis Wi-Fi | Ofis DHCP'sinden |
+| Bench (Aşama 4 sonrası) | Aynı | Ofis DHCP'sinde MAC rezervasyonu → sabit |
+| Üretim (16 Pi) | Üretim VLAN'ı, Ethernet, **Wi-Fi kapalı** | Üretim DHCP'sinde MAC rezervasyonu |
+
+### Sorun giderme: IP yok veya `169.254.x.x`
+
+`169.254.x.x` = "kimse bana adres vermedi, kendime uydurdum" (link-local). Anlamı **DHCP
+cevap vermedi.** Sebepleri: port yanlış VLAN'da, kablo takılı değil, o VLAN'da DHCP sunucusu
+yok, ya da havuz dolu.
 
 ## 3. MAC adresi
 

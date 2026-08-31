@@ -149,6 +149,14 @@ için o makine nasılsa tüm Pi'lere erişebilir olmalı — yeni bir yol açmı
 **Açık soru:** sunucu hangi VLAN'da olacak? Üretim VLAN'ında olması hem MQTT kurallarını
 gereksiz kılıyor hem jump host rolünü doğal hale getiriyor.
 
+**Ek kural (yeni):** üretime giden golden image'da **Wi-Fi kapalı olacak.** Bir Pi hem ofis
+Wi-Fi'ına hem üretim Ethernet'ine bağlıysa iki ağı köprüler ve "üretim ağında internet yok"
+taahhüdü çöker. Bench ünitesi için geçerli değil.
+
+**Netleşen:** IP adresi cihazdan değil ağdan gelir. Wi-Fi'da SSID→VLAN eşlemesi, Ethernet'te
+switch portunun VLAN'ı belirleyicidir. Bizim seçimimiz Ethernet + MAC'e DHCP rezervasyonu:
+Pi yine DHCP ile sorar, cevap hep aynı gelir, ayar tek tabloda durur.
+
 **Zamanlama:** bu konuşma **kablolamadan önce** yapılacak. Erişim hiç açılmazsa alternatif
 panonun yanında laptop'la çalışmak — 16 makinede ciddi yavaşlama.
 
