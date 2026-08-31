@@ -173,6 +173,15 @@ sunucumuzda (`dnsmasq`) çalışır. Bu, brief §12.4'teki rezervasyon kararın�
 
 **PoE açık:** brief §4.4'teki PoE seçeneği seçilirse switch de PoE'li olmalı. Karar verilmedi.
 
+**Kritik netleşme:** laptop'a elle `192.168.5.x` yazmak onu üretim ağına sokmaz —
+belirleyici olan **portun VLAN'ı**. Port doğruysa IP ister DHCP'den gelir ister elle yazılır;
+port yanlışsa hiçbir ayar işe yaramaz.
+
+**Bulunan kısayol — izole ada testi:** laptop + switch + Pi, uplink hiçbir yere takılı değil.
+VLAN/DHCP/IT gerekmeden tüm zincir (kablolama, switch, SSH) kanıtlanabilir. Elle statik IP
+ile veya hiç ayar yapmadan mDNS ile (`ssh andon@andon-bench.local`). IT portu hazırlayınca
+sadece uplink takılacak. **Bu test IT'yi beklemeden yapılabilir.**
+
 **Zamanlama:** bu konuşma **kablolamadan önce** yapılacak. Erişim hiç açılmazsa alternatif
 panonun yanında laptop'la çalışmak — 16 makinede ciddi yavaşlama.
 

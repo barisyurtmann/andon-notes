@@ -299,6 +299,54 @@ jump host** iste: ofisten sadece sunucuya, sadece TCP 22.
 | Sende ne değişir | Kabloyu takarsın | `~/.ssh/config`'e ProxyJump |
 | Ansible nereden | PC bağlıyken | Sunucudan |
 
+### ⚠️ IP'yi elle yazmak seni o ağa sokmaz
+
+Laptop'ın ethernet portuna `192.168.5.50` yazmak, o kablonun **hangi VLAN'a bağlı olduğunu
+değiştirmez.** Kablo ofis VLAN'ından geliyorsa hiçbir şey çalışmaz — yanlış binada, kapına
+farklı daire numarası yazmış olursun.
+
+**Belirleyici olan portun VLAN'ıdır.** Sıra:
+1. IT portu üretim VLAN'ına alır ← bu olmadan hiçbir şey olmaz
+2. Kablo takılır
+3. IP ya DHCP'den gelir ya elle yazılır
+
+### Port doğruysa: DHCP varsa otomatik, yoksa elle
+
+| | DHCP varsa | DHCP yoksa |
+|---|---|---|
+| Ne yaparsın | Hiçbir şey | Elle statik IP |
+| Laptop IP | Havuzdan | `192.168.5.50` gibi, boşta olan bir adres |
+| Maske | Otomatik | `255.255.255.0` |
+| Gateway | **Verilmesin** | **Boş** |
+| DNS | Boş | Boş |
+
+Gateway'i boş bırakmak kritik: Windows'un internet trafiğini o kablodan göndermeye
+kalkmasını engeller. İnternet Wi-Fi'dan gelmeye devam eder.
+
+**Windows'ta elle IP:** Ayarlar → Ağ → Ethernet → IP ataması → Düzenle → El ile → IPv4 aç →
+IP, maske; gateway ve DNS boş.
+
+### İzole ada testi — IT'yi beklemeden
+
+Tüm zincir kimseye sormadan kurulabilir:
+
+```
+Laptop ──kablo──▶ switch ◀──kablo── Pi
+                    (uplink hiçbir yere takılı değil)
+```
+
+VLAN yok, DHCP yok, IT yok. İki seçenek:
+
+- **Elle IP:** laptop `192.168.5.50`, Pi `192.168.5.11` → `ssh andon@192.168.5.11`
+- **Hiç ayar yapmadan:** ikisi de `169.254.x.x` uydurur; Raspberry Pi OS'taki mDNS (avahi)
+  sayesinde **`ssh andon@andon-bench.local`** ile bulunur
+
+Bu test kablolamayı, switch'i ve SSH'ı kanıtlar. IT portu hazırladığında sadece uplink
+takılır ve aynı şey gerçek ağda çalışır.
+
+⚠️ Test sırasında Pi'nin **Wi-Fi'ını kapat** — açık kalırsa hangi bağlantı üzerinden
+konuştuğunu karıştırırsın.
+
 ### Windows tarafında kontrol
 
 ```powershell
