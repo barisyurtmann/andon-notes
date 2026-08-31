@@ -111,6 +111,59 @@ gereksiz trafik üretimi yormasın. IT'nin ilk soracağı şeylerden biridir.
 **Not:** geliştirme PC'sinin GitHub'a erişimi ofis ağı üzerindendir ve bu taahhütle
 çelişmez — üretim VLAN'ı yine kapalı kalır.
 
+### "İnternete erişimi yok" ≠ "ona erişilemez"
+
+Bu ikisi **ayrı kurallardır ve karıştırılır:**
+
+| Yön | Ne demek | Kararımız |
+|---|---|---|
+| Pi → internet (dışarı) | Pi'nin kendi başına dışarı çıkması | **Kapalı** |
+| PC → Pi (içeri, port 22) | Senin ona SSH ile bağlanman | **Ayrıca açılmalı** |
+
+Pi'nin internete çıkamaması, sana kapalı olduğu anlamına gelmez. Ama otomatik de açık
+değildir: farklı VLAN'lar varsayılan olarak birbirini görmez.
+
+### Yönetim erişimi — iki seçenek
+
+**A. Doğrudan kural:** ofisteki belirli bir IP'den üretim VLAN'ına, sadece TCP 22.
+Dar ve denetlenebilir.
+
+**B. Atlama sunucusu (jump host) — tercih edilen:**
+
+```
+PC (ofis) ──SSH/22──▶ Sunucu (üretim VLAN) ──SSH/22──▶ 16 Pi
+```
+
+- IT'nin yazacağı kural tek hedef, tek port → kabul etmesi kolay
+- Tüm yönetim erişimi tek noktadan geçer, log tek yerde
+- **Ansible zaten sunucuda çalışacak** (Faz 2); o makine nasılsa tüm Pi'lere erişebilir
+  olmalı. Yeni bir yol açmıyoruz, var olanı kullanıyoruz
+- 1 makineden 16'ya çıkarken yeni kural gerekmez
+
+Kullanımı `~/.ssh/config` ile şeffaflaşır — bkz. `02-ssh-ve-uzak-erisim.md`, ProxyJump.
+
+### Firewall kural listesi (IT'ye götürülecek)
+
+| Kural | Yön | Port | Not |
+|---|---|---|---|
+| Üretim VLAN → internet | — | — | **Kapalı** (brief §3.6) |
+| Üretim VLAN → ofis ağı | — | — | **Kapalı** |
+| Ofis (belirli IP) → sunucu | içeri | 22 | Yönetim erişimi |
+| Ofis → sunucu | içeri | 3000, 80/443 | Grafana, web app |
+| Pi'ler → sunucu | içeri | 1883, 123 | Aynı VLAN'daysa kural gerekmez |
+| Pi ↔ Pi | — | — | **Kapalı.** Peer-to-peer yok |
+
+### Sunucu hangi VLAN'da
+
+- **Üretim VLAN'ında (önerilen):** Pi'lerle aynı ağda, MQTT için kural gerekmez, jump host olur
+- Ayrı sunucu VLAN'ında: daha "temiz" ama Pi↔sunucu için ek kurallar gerekir
+
+### Erişim hiç açılmazsa
+
+Panonun yanına gidip laptop'ı üretim switch'ine takarak çalışırsın. Çalışır ama her müdahale
+için sahaya inmek demektir — 16 makinede ciddi yavaşlama. **Bu konuşma kablolamadan önce
+yapılır.**
+
 ## 8. Faydalı komutlar
 
 | Komut | Ne yapar |

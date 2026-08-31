@@ -146,6 +146,32 @@ Host bench
 
 Artık `ssh bench` yeterli. 16 makinelik filoda bu dosya hayat kurtarır.
 
+### ProxyJump — atlama sunucusu üzerinden bağlanma
+
+Üretim VLAN'ına ofisten doğrudan erişim olmayabilir; bağlantı sunucu üzerinden geçer
+(bkz. `07-ag-temelleri.md`). SSH bunu senin yerine yapar:
+
+```
+Host andon-server
+    HostName 192.168.5.10
+    User andon
+
+Host andon-m001
+    HostName 192.168.5.11
+    User andon
+    ProxyJump andon-server
+
+Host andon-m0*
+    User andon
+    ProxyJump andon-server
+```
+
+`ssh andon-m001` yazdığında SSH önce sunucuya bağlanır, oradan Pi'ye atlar — sen aradaki
+adımı hiç görmezsin. `scp` ve VS Code Remote-SSH de bu ayarı kullanır.
+
+**Neden bu kalıp:** IT'nin yazacağı firewall kuralı tek hedef ve tek port olur; 16 Pi için
+16 kural gerekmez.
+
 ## 5. Dosya kopyalama
 
 | Komut | Ne yapar |

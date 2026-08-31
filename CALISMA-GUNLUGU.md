@@ -135,6 +135,26 @@ Kabuk alıştırması Pi üzerinde yapıldı: `pwd`/`ls -la`/`cd`/`mkdir`, `nano
 **Not:** Aşama 3'ten itibaren laptop'tan SSH ile çalışmak pratik olacak — çıktıyı kopyalamak
 ve kod yapıştırmak için. Üretim disiplini de zaten bu (GUI Pi'de değil laptop'ta).
 
+### Açılan konu — yönetim erişimi (ağ)
+
+IT üretim VLAN'ını internetsiz ayrı bir alana (ör. `192.168.5.x`) alırsa, **ofisten Pi'lere
+SSH erişimi otomatik olmaz** — ayrı bir firewall kuralı gerekir. "Pi internete çıkamaz" ile
+"Pi'ye erişilemez" farklı şeyler.
+
+**Karar önerisi: atlama sunucusu (jump host).** Ofisten sadece sunucuya SSH açılır, Pi'lere
+sunucu üzerinden geçilir (`ProxyJump`). Gerekçe: IT'nin yazacağı kural tek hedef/tek port
+olur, tüm yönetim erişimi tek noktadan geçip loglanır, ve Ansible zaten sunucuda çalışacağı
+için o makine nasılsa tüm Pi'lere erişebilir olmalı — yeni bir yol açmıyoruz.
+
+**Açık soru:** sunucu hangi VLAN'da olacak? Üretim VLAN'ında olması hem MQTT kurallarını
+gereksiz kılıyor hem jump host rolünü doğal hale getiriyor.
+
+**Zamanlama:** bu konuşma **kablolamadan önce** yapılacak. Erişim hiç açılmazsa alternatif
+panonun yanında laptop'la çalışmak — 16 makinede ciddi yavaşlama.
+
+Notlara işlendi: `07-ag-temelleri.md` (firewall kural listesi, VLAN seçenekleri),
+`02-ssh-ve-uzak-erisim.md` (ProxyJump).
+
 ### Sıradaki adım
 
 Öğrenme yolu **Aşama 3** — Python scriptinden `systemd` servisine. Projenin yazılım
