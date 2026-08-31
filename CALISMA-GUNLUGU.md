@@ -152,8 +152,16 @@ gereksiz kılıyor hem jump host rolünü doğal hale getiriyor.
 **Zamanlama:** bu konuşma **kablolamadan önce** yapılacak. Erişim hiç açılmazsa alternatif
 panonun yanında laptop'la çalışmak — 16 makinede ciddi yavaşlama.
 
-Notlara işlendi: `07-ag-temelleri.md` (firewall kural listesi, VLAN seçenekleri),
-`02-ssh-ve-uzak-erisim.md` (ProxyJump).
+**Netleşen:** ayrı bir Wi-Fi ağına gerek yok — konu kablosuz ağ değil yönlendirme.
+Farklı IP alanına erişmek, internete erişmekle aynı mekanizma (gateway üzerinden).
+
+**İlk istenecek: Yol A — masadaki ethernet portunun üretim VLAN'ına alınması.** PC Wi-Fi'dan
+internete, ethernet'ten üretim ağına bağlı olur. IT hiçbir firewall kuralı yazmaz, VLAN
+izolasyonu bozulmaz. Şart: o porttan **default gateway verilmemeli**, yoksa internet kesilir.
+Reddedilirse Yol B (ofisten sunucuya tek kural + ProxyJump).
+
+Notlara işlendi: `07-ag-temelleri.md` (yönlendirme mantığı, iki yol, Windows kontrol
+komutları, **IT'ye gönderilecek hazır metin**), `02-ssh-ve-uzak-erisim.md` (ProxyJump).
 
 ### Sıradaki adım
 

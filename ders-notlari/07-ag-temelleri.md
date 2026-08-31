@@ -158,6 +158,81 @@ Kullanımı `~/.ssh/config` ile şeffaflaşır — bkz. `02-ssh-ve-uzak-erisim.m
 - **Üretim VLAN'ında (önerilen):** Pi'lerle aynı ağda, MQTT için kural gerekmez, jump host olur
 - Ayrı sunucu VLAN'ında: daha "temiz" ama Pi↔sunucu için ek kurallar gerekir
 
+### Nasıl oluyor: yönlendirme (routing)
+
+**Farklı bir IP alanına erişmek özel bir durum değil — internete erişmekle aynı şey.**
+
+PC'n `192.168.0.50`, Google `142.250.x.x`. PC şöyle düşünür: *"Hedef benim ağımda mı?
+Değilse gateway'e ver, o halleder."*
+
+```
+PC 192.168.0.50 ──▶ gateway 192.168.0.1 ──▶ (yönlendirir) ──▶ hedef
+```
+
+`192.168.5.11`'e erişmek de aynı mekanizma. Tek soru: **firewall izin veriyor mu.**
+Yani IT'den istenen şey yeni bir ağ ya da yeni bir Wi-Fi değil, **var olan iki ağ arasında
+dar bir geçiş izni** (ya da hiç geçiş gerektirmeyen Yol A, aşağıda).
+
+### Yönetim erişimi için iki uygulama yolu
+
+**Yol A — masaya üretim VLAN'ından kablo (önerilen ilk istek)**
+
+Masadaki ethernet portu üretim VLAN'ına alınır. PC'de iki bağlantı olur:
+
+| Bağlantı | Ağ | Ne için |
+|---|---|---|
+| Wi-Fi | Ofis, `192.168.0.x` | İnternet, GitHub |
+| Ethernet | Üretim, `192.168.5.x` | Pi'ler, sunucu |
+
+Windows ikisini aynı anda kullanır; hangi hedefin hangi arabirimden gideceğini yönlendirme
+tablosu belirler. **IT hiçbir firewall kuralı yazmaz** — VLAN'lar arası geçiş yoktur, sadece
+o porta VLAN atanır. İzolasyon ilkesi hiç bozulmaz.
+
+⚠️ **Kritik detay:** o porttan **default gateway verilmemeli.** Verilirse Windows internet
+trafiğini de oradan göndermeye çalışır ve internet kesilir. Üretim VLAN'ında zaten internet
+yok; sadece IP ve subnet mask yeter.
+
+**Yol B — yönlendirme + firewall kuralı**
+
+Masa ofis VLAN'ında kalır, ofis→üretim yönünde dar bir kural yazılır. Bu durumda **mutlaka
+jump host** iste: ofisten sadece sunucuya, sadece TCP 22.
+
+| | Yol A (kablo) | Yol B (kural) |
+|---|---|---|
+| IT'nin yazacağı kural | **Yok** | 1 kural |
+| VLAN'lar arası geçiş | Yok | Var, dar |
+| Sende ne değişir | Kabloyu takarsın | `~/.ssh/config`'e ProxyJump |
+| Ansible nereden | PC bağlıyken | Sunucudan |
+
+### Windows tarafında kontrol
+
+```powershell
+ipconfig            # hangi bağlantı hangi IP almış
+route print         # hangi hedef hangi arabirimden gidiyor
+ping 192.168.5.11
+```
+
+Yol A'da `route print` çıktısında iki satır olmalı: `0.0.0.0` (internet) → Wi-Fi,
+`192.168.5.0` → Ethernet.
+
+### IT'ye gönderilecek metin (hazır)
+
+> Üretim hattına 16 adet Raspberry Pi ve bir sunucu kuracağız. Bu cihazlar ayrı bir VLAN'da,
+> **internet erişimi olmadan** çalışacak; sadece sunucunun MQTT portu (1883) ve NTP (123) ile
+> konuşacaklar. Ofis ağına erişimleri olmayacak.
+>
+> Cihazları kurup bakabilmem için yönetim erişimine ihtiyacım var. Tercihim: **masamdaki
+> ethernet portunun üretim VLAN'ına alınması.** Böylece VLAN'lar arasında geçiş kuralı
+> yazmanıza gerek kalmaz; ben internete Wi-Fi üzerinden bağlı kalırım. Bu portta bana
+> **default gateway verilmemesini** rica ediyorum.
+>
+> Mümkün değilse alternatif: ofis ağındaki tek bir IP'den üretim VLAN'ındaki **sadece
+> sunucuya, sadece TCP 22** izni. Pi'lere sunucu üzerinden erişirim.
+>
+> Ayrıca Grafana ve web arayüzünü ofisten görebilmek için sunucuya TCP 3000 ve 80/443
+> erişimi gerekecek. Cihaz envanterini (MAC, IP, seri no, konum) yazılı paylaşacağım; hepsi
+> tek golden image'dan kurulacak ve Ansible ile yönetilecek.
+
 ### Erişim hiç açılmazsa
 
 Panonun yanına gidip laptop'ı üretim switch'ine takarak çalışırsın. Çalışır ama her müdahale
