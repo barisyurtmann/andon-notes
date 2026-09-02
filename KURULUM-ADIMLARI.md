@@ -117,11 +117,25 @@ IP `192.168.5.50`, maske `255.255.255.0`, **ağ geçidi ve DNS boş.**
 ```bash
 sudo usermod -aG dialout andon     # seri port izni
 sudo apt install -y python3-venv
-mkdir -p ~/andon-lab && cd ~/andon-lab
-python3 -m venv .venv
-source .venv/bin/activate
-pip install "pymodbus[serial]==3.6.9"
+python3 -m venv ~/.venv                       # venv ANA DIZINDE
+mkdir -p ~/andon-lab                          # kod ayri klasorde
+~/.venv/bin/pip install "pymodbus[serial]==3.6.9" pyyaml
 ```
+
+> **venv nerede — 2026-09-02'de netleşti.** Bench Pi'sinde venv `~/.venv` içinde,
+> `~/andon-lab/.venv` içinde **değil**. Bu yüzden `cd ~/andon-lab` yapıp
+> `source .venv/bin/activate` çalışmaz.
+>
+> **Çözüm: `activate` hiç kullanma.** venv'in python'unu doğrudan çağır:
+>
+> ```bash
+> cd ~/andon-lab
+> ~/.venv/bin/python collector.py --check
+> ```
+>
+> Böylece hangi Python'un çalıştığı konusunda şüphe kalmaz. systemd servisi de tam olarak
+> bunu yapar — servisin kabuğu olmadığı için `activate` yapamaz zaten.
+> Ayrıntı: `ders-notlari/09-python-servis-temelleri.md` §venv.
 
 ⚠️ `usermod` sonrası **SSH oturumunu kapat ve tekrar bağlan** — grup değişikliği yeni
 oturumda geçerli olur.
@@ -168,8 +182,8 @@ dmesg | tail -20
 
 **H.3 — Tarama (hiçbir şey yazmaz)** ✅
 ```bash
-cd ~/andon-lab && source .venv/bin/activate
-python3 scan_dvp.py
+cd ~/andon-lab
+~/.venv/bin/python tools/scan_dvp.py
 ```
 Script kaynağı: `andon-collector/tools/scan_dvp.py`
 
@@ -195,8 +209,8 @@ Sonra `0x112C` adresinden **tek istekte 2 register** oku.
 Script: `andon-collector/tools/read_test.py` (sadece okur, hiçbir yazma içermez)
 
 ```bash
-cd ~/andon-lab && source .venv/bin/activate
-python3 read_test.py
+cd ~/andon-lab
+~/.venv/bin/python tools/read_test.py
 ```
 
 Adres hesabı (vendor tablosundan, [DOĞRULANDI]):

@@ -48,8 +48,25 @@ tablosuna bir satır. Ana servise dokunulmaz. Yeni bir **makine** eklemek ise sa
 
 | Sürücü | Kim kullanır |
 |---|---|
-| `modbus_rtu` | Grup 1–2: RS-485 üzerinden Delta DVP-SS2 |
+| `modbus_serial` | Grup 1–2: RS-485 üzerinden Delta DVP-SS2 |
 | `modbus_tcp` | Grup 3: AS218TX (Ethernet varsa) **ve** simülatör testleri |
+
+> **İsim düzeltmesi — 2026-09-02.** Sürücünün ilk adı `modbus_rtu` idi ve bu **yanlıştı.**
+> "Modbus RTU" bir **çerçeveleme (framing)** biçimidir, taşıma değil. Aynı seri hat
+> üzerinde Modbus iki türlü çerçevelenebilir:
+>
+> | | Ne |
+> |---|---|
+> | **RTU** | İkili (binary), kompakt |
+> | **ASCII** | Metin, daha yavaş |
+>
+> **Bizim makinelerin çoğu ASCII konuşuyor** (bench ölçümü, 2026-09-02). Sürücüye "rtu"
+> demek, filonun çoğunlukla kullanmadığı bir çerçevelemeyi ima ediyordu.
+>
+> Sürücünün gerçekte sahip olduğu şey **taşımadır** (seri hat), o yüzden adı ona göre:
+> `modbus_serial`. Çerçeveleme ise `machines.yaml`'da makine bazlı bir ayar olarak kalır.
+>
+> Eski ad hâlâ kabul ediliyor, ama uyarı basıyor.
 
 Planlanan: `gpio_sensor` (Grup 4 — okunabilir PLC'si olmayan makineler, kule lambası + sensör).
 
@@ -345,3 +362,59 @@ duruşta eklenirse marjinal maliyeti sıfıra yakın. Ama ayrı duruş istemeye 
 Geçen süre bilinmediği için (Pi 5'te RTC yok, saat yeniden başlarken yanlış olabilir) makul
 bir tavan hesaplanamaz. O yüzden test künttür: fark sayaç aralığının yarısından büyükse
 üretim sayılmaz, kesinti kaydı `parts: null` ve `counter_reset_across_restart` notuyla yazılır.
+
+
+## 13. Kodu hangi sırayla okumalısın
+
+Hepsini birden açma. Bu sırayla, birer birer:
+
+| Sıra | Dosya | Neden önce bu |
+|---|---|---|
+| 1 | `machines.yaml` | Kod değil, ayar. Neyin ayarlanabildiğini görürsün |
+| 2 | `counters.py` | En önemli mantık, en az bağımlılık |
+| 3 | `drivers/base.py` | Çok kısa. Bir sürücünün sadece 3 şey bilmesi gerektiğini gösterir |
+| 4 | `drivers/modbus_serial.py` | Gerçek PLC konuşması. Zaten bildiğin Modbus |
+| 5 | `worker.py` | Ana döngü. `_poll_once` fonksiyonuna bak |
+| 6 | `sink.py` | Kaydın nasıl oluştuğu |
+| 7 | `collector.py` | Her şeyi birbirine bağlayan yer |
+| — | `config.py`, `clock.py`, `state_store.py` | Merak edince |
+
+**Her dosyanın en üstünde üçlü tırnak (`"""`) içinde bir açıklama var** — ne yaptığını ve
+**neden öyle yaptığını** anlatır. Kodun kendisinden önce onu oku. `#` ile başlayan satırlar
+da açıklamadır, çalışmaz.
+
+### Bir komutun parçaları
+
+```
+~/.venv/bin/python   collector.py   --check
+└────────┬────────┘  └─────┬────┘  └──┬──┘
+   hangi Python      hangi program   ayar
+```
+
+`--` ile başlayanlar ayardır. Tam liste: `andon-collector/KULLANIM.md` §6.
+
+### Program başlayınca ne oluyor
+
+1. Ayarları oku (`collector.py`)
+2. `machines.yaml`'ı oku **ve kontrol et** (`config.py`) — hata varsa burada durur
+3. `--check` verilmişse çık; port açılmaz
+4. Çıktının nereye gideceğini kur (`sink.py`)
+5. `boot_id` üret — her başlatmada değişen rastgele altı karakter
+6. Saat doğru mu bak (`clock.py`)
+7. Her makine için bir işçi başlat (`worker.py`)
+
+### Her saniye ne oluyor
+
+Ladder'daki tarama çevrimi gibi düşün:
+
+1. **Bağlı mıyım?** Değilse bağlan; olmazsa 1, 2, 4, 8… saniye bekle (backoff)
+2. **Oku** — her alan için bir istek; 32-bit sayacın iki register'ı **tek istekte**
+3. **Birleştir** — `[2, 1]` → `(1 × 65536) + 2 = 65538`
+4. **Fark hesapla** (`counters.py`)
+5. **Kayıt yaz** — 3 parça çıktıysa 3 satır, hiç çıkmadıysa hiçbir şey
+6. **Sayacı diske kaydet** (`state_store.py`)
+7. **Bir sonraki saniyeye kadar uyu** — sabit periyot, kaymaz
+
+> **Kod okumadan iş yapmak için:** `andon-collector/KULLANIM.md`. Ne değiştirmek
+> istediğine göre nereye bakacağını, hata mesajlarının ne demek olduğunu ve komutları
+> içerir. Bu not *neden*i anlatır, o dosya *nasıl*ı.

@@ -641,3 +641,40 @@ gönderilecek bir yer olmadığı için kuyruk anlamsız.
 - `state` register adresi belirsiz (brief §11 madde 16)
 - AS manueli işlenmedi — Grup 3 / AS218TX için gerekli
 - MQTT ve yerel kuyruk yazılmadı
+
+### Sürücü adı düzeltildi ve kullanım kılavuzu yazıldı — 2026-09-02 (geç akşam)
+
+**`modbus_rtu` → `modbus_serial`.** İlk isim yanlıştı. "Modbus RTU" bir *çerçeveleme*
+biçimidir, taşıma değil; aynı seri hat üzerinde RTU ya da ASCII çerçeveleme kullanılabilir.
+**Bu filonun çoğu ASCII konuşuyor** (bench ölçümü), yani sürücüye "rtu" demek kullanmadığımız
+bir çerçevelemeyi ima ediyordu. Sürücünün gerçekte sahip olduğu şey taşımadır.
+
+Eski ad hâlâ kabul ediliyor ama uyarı basıyor — sahada eski config'i olan bir Pi kırılmasın
+diye:
+
+```
+WARNING drivers: M001: driver 'modbus_rtu' is the old name for 'modbus_serial'.
+```
+
+Şimdi değiştirmek en ucuz an: tek makine tanımlı, üretimde hiçbir şey yok.
+
+**`andon-collector/KULLANIM.md` yazıldı (390 satır, Türkçe).** Kod okumadan iş yapmak için:
+ne değiştirmek istiyorsan nereye bakacağın, yeni makine/alan/PLC ekleme adımları, dokunulmaması
+gerekenler ve nedenleri, komut sözlüğü, hata mesajları sözlüğü, ve sayacın hangi register'da
+olması gerektiği uyarısı.
+
+Ayrım şu: `ders-notlari/16` **neden**i anlatır, `KULLANIM.md` **nasıl**ı.
+
+**venv yeri düzeltildi.** Bench Pi'sinde venv `~/.venv` içinde, `~/andon-lab/.venv` içinde
+değil — `KURULUM-ADIMLARI.md` yanlış yazıyordu, düzeltildi.
+
+**Yeni kural: `activate` kullanılmıyor.** venv'in python'u doğrudan çağrılıyor:
+
+```bash
+cd ~/andon-lab
+~/.venv/bin/python collector.py --check
+```
+
+Gerekçe: venv'in nerede olduğu önemsizleşir, yanlış Python'la çalışma ihtimali sıfırlanır,
+ve systemd zaten bunu yapmak zorunda (servisin kabuğu yok). Ders notu 09'a venv bölümü
+eklendi, 16'ya kod okuma sırası ve komut anatomisi eklendi.

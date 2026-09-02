@@ -285,3 +285,67 @@ gerçekten ihtiyaç duyunca ekle.
 
 **Kaynak:** *Automate the Boring Stuff with Python*, `automatetheboringstuff.com`,
 **Bölüm 1–6 yeter**, online ücretsiz.
+
+
+## venv — projenin kendi Python'u
+
+Python'da kütüphaneler (`pymodbus` gibi) bilgisayara kurulur. Sorun: iki proje aynı
+kütüphanenin farklı sürümünü isterse çakışırlar.
+
+**venv** = o projeye ait, kendi kütüphanelerini taşıyan ayrı bir Python kopyası.
+
+```
+~/.venv/
+├── bin/python        ← projenin kendi Python'u
+├── bin/pip           ← projenin kendi kurulum aracı
+└── lib/...           ← pymodbus burada, sistemde değil
+```
+
+**Pano karşılığı:** her makinenin kendi panosu olması. Ortak pano da olurdu, ama biri
+diğerini bozar.
+
+### `activate` ne yapıyor
+
+```bash
+source ~/.venv/bin/activate
+```
+
+Kabuğa şunu der: *"bundan sonra `python3` yazınca sistemdekini değil, buradakini kullan."*
+Bir kısayol tanımlar, başka bir şey yapmaz.
+
+`source .venv/bin/activate` **bulunduğun klasörde** arar. venv başka yerdeyse çalışmaz —
+2026-09-02'de bench Pi'sinde tam olarak bu oldu: venv `~/.venv` içindeydi ama komut
+`~/andon-lab` içinden çalıştırılıyordu.
+
+### Bu projedeki kural: `activate` kullanma
+
+Kısayol yerine tam adresi yaz:
+
+| Yol | Sonuç |
+|---|---|
+| `source ~/.venv/bin/activate` sonra `python3 collector.py` | Çalışır, ama "aktif miydi" şüphesi kalır |
+| `~/.venv/bin/python collector.py` | Aynı şey, şüphe yok |
+
+**Neden ikincisi:**
+
+1. venv'in nerede olduğu önemsizleşir.
+2. Yanlış Python'la çalışma ihtimali sıfır.
+3. **systemd zaten bunu yapar.** Servisin kabuğu yoktur, `activate` çalıştıramaz:
+
+```
+ExecStart=/opt/andon/.venv/bin/python3 /opt/andon/andon-collector/collector.py
+```
+
+Yani `activate`'i öğrenmek yerine doğrudan yolu yazmayı alışkanlık edinmek, servis
+yazarken zaten yapman gereken şeyi şimdiden yapmak demektir.
+
+### Kütüphane kurmak
+
+```bash
+~/.venv/bin/pip install "pymodbus[serial]==3.6.9"
+~/.venv/bin/pip install -r requirements.txt     # dosyadaki hepsini kur
+~/.venv/bin/pip list                            # kurulu olanları göster
+```
+
+`==3.6.9` sürümü **sabitler**. Brief §6: pymodbus 3.x içinde API kırıldı; sürüm
+sabitlenmeden filoya çıkılmaz. `requirements.txt` bu sabitlemenin yazılı hali.
