@@ -383,3 +383,65 @@ Linux'ta hata mesajları genelde tam olarak sorunu söyler. En sık görecekkler
   **Bölüm 1–11 yeter.**
 - `linuxjourney.com` — "Grasshopper" bölümü.
 - Video izlemek öğrenmek gibi hissettirir, değildir. Komutu kendin yazmadan öğrenmiyorsun.
+
+---
+
+## Dosya oluşturmanın üç yolu
+
+Bir Pi'de dosya oluşturmanın üç pratik yolu var. Hangisini seçeceğin
+**dosyanın tek doğru kaynağı (source of truth) nerede** sorusuna bağlı.
+
+### 1. `scp` — PC'den kopyala (bizim tercihimiz)
+
+```bash
+scp yerel_dosya andon@192.168.0.166:/home/andon/andon-lab/
+```
+
+`scp` = secure copy. SSH tünelinin üzerinden dosya taşır, ayrı bir kurulum
+gerektirmez. Windows 10/11'de PowerShell'de hazır gelir.
+
+**Neden bu tercih ediliyor:** kodun tek doğru kaynağı git repo'sudur. Pi'deki
+dosya repo'nun bir *kopyasıdır*. Pi'de elle düzenlersen iki sürüm birbirinden
+ayrılır ve hangisinin doğru olduğunu bilemezsin — bu, tek kişilik ekipte gece
+02:00'de en pahalı hata türüdür.
+
+### 2. Heredoc — terminale doğrudan yapıştır
+
+```
+cat > dosya.py <<'SON'
+buraya
+dosyanın
+içeriği
+SON
+```
+
+**Heredoc nedir:** "here document". Shell `<<ETIKET` gördüğünde, sen `ETIKET`
+kelimesini tek başına bir satıra yazana kadar aradaki her satırı komuta *girdi
+olarak* verir. `cat >` de bu girdiyi dosyaya yazar.
+
+**Etiketin tırnak içinde olması kritiktir:**
+
+| Yazım | Davranış |
+|---|---|
+| `<<'SON'` (tırnaklı) | İçerik **aynen** yazılır |
+| `<<SON` (tırnaksız) | Shell içerikteki `$DEGISKEN` ve ters-tırnak ifadelerini **yorumlar ve değiştirir** |
+
+Python veya YAML dosyası yazarken **her zaman tırnaklı** kullan. Aksi halde
+kodundaki `$` işaretleri sessizce boş dizeye dönüşür — bozuk dosya elde edersin
+ve hata bile almazsın.
+
+Etiket adı serbesttir (`EOF`, `SON`, `BITTI`...). Tek kural: **dosya içeriğinde
+geçmeyen** bir kelime seç. İçerikte de aynı kelime varsa heredoc erken biter ve
+dosyanın yarısı shell'e komut olarak çalışmaya kalkar.
+
+### 3. `nano` — editörle yaz
+
+```
+nano dosya.py
+```
+
+Yapıştır, `Ctrl+O` sonra `Enter` (kaydet), `Ctrl+X` (çık).
+
+**Tuzak:** `nano` bazı terminallerde girintiyi otomatik ekler. Python'da girinti
+sözdiziminin parçası olduğu için yapıştırılan kod bozulabilir. Yapıştırmadan önce
+`Alt+I` ile otomatik girintiyi kapat, ya da heredoc kullan.
