@@ -118,7 +118,9 @@ Tek satırlık karşılıklar. Detay için ilgili ders notuna bak.
 | `pinout` | GPIO pin haritası |
 | `dmesg \| tail` | Az önce takılan cihaz ne olarak tanındı |
 | `udevadm info -a -n /dev/ttyUSB0` | udev kuralı için cihaz bilgisi |
-| `sudo usermod -aG dialout andon` | Seri port izni ver |
+| `sudo usermod -aG dialout andon` | Seri port izni ver (`-a` = ekle; yazmazsan grupların silinir) |
+| `groups` | Hangi gruplardayım (yeni oturumda güncellenir) |
+| `ls -l /dev/ttyUSB*` | Seri adaptörler görünüyor mu |
 
 ## systemd
 
@@ -156,7 +158,9 @@ Tek satırlık karşılıklar. Detay için ilgili ders notuna bak.
 |---|---|
 | `python3 dosya.py` | Çalıştır |
 | `python3 -m venv .venv` | Sanal ortam oluştur |
-| `source .venv/bin/activate` | Sanal ortamı etkinleştir |
+| `source .venv/bin/activate` | Sanal ortamı etkinleştir (`source` = scripti kendi kabuğunda çalıştır) |
+| `deactivate` | Sanal ortamdan çık |
+| `pip install "paket[ek]==sürüm"` | Kur; `[ek]` opsiyonel bağımlılık, `==` sürüm sabitleme |
 | `pip install -r requirements.txt` | Bağımlılıkları kur |
 | `python3 -c "import yaml; yaml.safe_load(open('x.yaml'))"` | YAML geçerli mi |
 

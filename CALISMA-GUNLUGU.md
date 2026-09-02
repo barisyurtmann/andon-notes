@@ -196,6 +196,32 @@ Reddedilirse Yol B (ofisten sunucuya tek kural + ProxyJump).
 Notlara işlendi: `07-ag-temelleri.md` (yönlendirme mantığı, iki yol, Windows kontrol
 komutları, **IT'ye gönderilecek hazır metin**), `02-ssh-ve-uzak-erisim.md` (ProxyJump).
 
+### Plan değişikliği — systemd ertelendi, gerçek veriye geçildi
+
+Sahibin itirazı: "gerçekten veri çekip çekmediğimizi denemeden servis dosyası yapmak ne
+kazandırıyor?" **Haklı.** Projenin gerçek bilinmeyenleri register haritası, word sırası ve
+adaptörün çalışması; `systemd`'nin bir scripti ayakta tutması bilinmeyen değil. Brief §9.1'in
+sırası da aynı fikirde: adım B (RS-485 kanıtı) `systemd`'den önce geliyor.
+
+**Karar:** `heartbeat.py` yazıldı ve elle çalıştırıldı (döngü + `logging` + `try/except` +
+`signal` iskeleti öğrenildi, collector aynı iskeleti kullanacak). **Servise dönüştürme,
+collector'ın ilk hali hazır olduğunda yapılacak** — ayakta kalması gereken gerçek bir iş
+olduğunda. İptal değil, erteleme: read-only root açıldığında elle çalıştırma zaten imkânsız
+olacak (brief §4.3).
+
+**Yeni sıra: brief §9.1 adım B.** Elde **yedek bir DVP-SS2 var**, bu yüzden simülatör yerine
+gerçek PLC ile gidiliyor. Sıra "önce oku, sonra yaz" (brief §5.5):
+1. USB-RS485 ↔ DVP COM2 kablolaması (A/B etiketleri ters olabilir — çalışmazsa ilk deneme)
+2. `scan_dvp.py` — **hiçbir şey yazmadan** hangi framer/baud/parity kombinasyonunun cevap
+   verdiğini tara
+3. Cevap gelirse: WPLSoft'tan D300=2, D301=1 girilip `0x112C`'den 2 register okunacak →
+   `[2, 1]` görülürse **hem 0x1000 adres tabanı hem lo_hi word sırası kanıtlanır**
+   (brief §5.1 ve §5.2'deki iki [DOĞRULA] birden kapanır)
+4. Cevap gelmezse: COM2 slave olarak yapılandırılacak (D1120/D1121/M1120/M1143 —
+   **manuelden teyit edilecek**)
+
+**Kullanılan PLC bench'te, hiçbir makineye bağlı değil.**
+
 ### Sıradaki adım
 
 Öğrenme yolu **Aşama 3** — Python scriptinden `systemd` servisine. Projenin yazılım

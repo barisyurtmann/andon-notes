@@ -223,9 +223,35 @@ pip install pymodbus paho-mqtt pyyaml
 deactivate                            # çık
 ```
 
-**Sanal ortam (venv) nedir:** projeye özel, sistemden ayrı bir Python paket klasörü. İki
-proje farklı sürüm isterse çakışmaz. Yeni Debian sürümleri sistem Python'ına doğrudan
-`pip install` yapılmasını zaten engeller.
+**Sanal ortam (venv) nedir:** projeye özel, sistemden ayrı bir Python paket klasörü. İçine
+kurduğun kütüphaneler sadece o projede görünür.
+
+**Neden:** iki proje aynı kütüphanenin farklı sürümlerini isterse çakışır. Ayrıca sistem
+Python'ına paket kurmak `apt`'ın yönettiği dosyaları bozabilir — yeni Debian sürümleri bu
+yüzden doğrudan `pip install` yapmayı engeller.
+
+**`source` ne yapıyor:** normalde bir script çalıştırdığında **yeni bir kabuk** açılır, script
+biter, o kabuk kapanır — yaptığı değişiklikler senin kabuğunu etkilemez. `source` scripti
+*senin* kabuğunda çalıştırır; böylece `activate` senin `PATH`'ini değiştirebilir ve `python3`
+yazdığında `.venv` içindeki Python çalışır.
+
+Çalıştığını istem satırından anlarsın: `(.venv) andon@andon-bench:~ $`
+Çıkmak için `deactivate`. **Her yeni SSH oturumunda tekrar `source` yapılır** — kabuk
+kapanınca ayar gider.
+
+**`pip install "paket[ek]==sürüm"` çözümlemesi:**
+
+| Parça | Anlamı |
+|---|---|
+| `pip` | Python'un paket yöneticisi (`apt`'ın Python karşılığı) |
+| `pymodbus` | Kütüphane adı |
+| `[serial]` | **Opsiyonel ek** — seri port desteği ayrı bir bağımlılık (`pyserial`); köşeli parantez "onu da kur" demek |
+| `==3.6.9` | **Sürüm sabitleme** |
+| Tırnak | Köşeli parantezi kabuk kendi işareti sanar; tırnak onu düz metin yapar |
+
+**Sürüm sabitlemek neden önemli:** `pymodbus`'ın API'si sürümler arasında değişti — fonksiyon
+isimleri ve import yolları farklı. Sabitlemezsen bugün çalışan kod altı ay sonra kurduğunda
+çalışmayabilir.
 
 `requirements.txt` ile bağımlılıklar sabitlenir:
 ```

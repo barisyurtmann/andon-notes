@@ -197,6 +197,50 @@ Sayısal gösterim: `r=4, w=2, x=1`. `644` = sahip 6 (4+2 = rw), grup 4 (r), her
 **Neden önemli:** collector'ın seri porta erişebilmesi için kullanıcının `dialout` grubunda
 olması gerekir. GPIO için `gpio` grubu. Bunlar sırası gelince yapılacak.
 
+### Gruplar ve donanım erişimi
+
+Linux'ta izinler tek tek kullanıcılara değil **gruplara** verilir. "Seri portu kullanabilenler"
+bir gruptur, "GPIO'yu kullanabilenler" başkası. Bir kullanıcıyı gruba eklemek ona o yetkiyi
+vermektir.
+
+```bash
+groups                              # hangi gruplardayım
+sudo usermod -aG dialout andon      # kullanıcıyı gruba EKLE
+```
+
+| Parça | Anlamı |
+|---|---|
+| `-a` | **append** — ekle. Yazmazsan mevcut grupların **silinir**, sadece yenisi kalır |
+| `-G dialout` | Hangi gruba |
+| `andon` | Hangi kullanıcı |
+
+⚠️ **Grup değişikliği ancak yeni oturumda geçerli olur** — hangi gruplarda olduğun giriş
+anında belirlenir. SSH'tan çıkıp tekrar bağlanman gerekir.
+
+**Bu projede gerekli gruplar:**
+
+| Grup | Ne için |
+|---|---|
+| `dialout` | Seri port (`/dev/ttyUSB0`) — USB-RS485 adaptörü |
+| `gpio` | GPIO pinleri — Andon butonu |
+
+`ls -l /dev/ttyUSB0` çıktısında dosyanın sahibi `root`, grubu `dialout` görünür. O gruba üye
+değilsen Python portu açamaz: `Permission denied`.
+
+### Aygıt dosyaları ve `dmesg`
+
+`/dev` altında donanım aygıtları **dosya gibi** görünür — Linux'un "her şey dosyadır"
+felsefesi. `/dev/ttyUSB0`'a yazmak seri porttan veri göndermektir.
+
+```bash
+ls -l /dev/ttyUSB*      # adaptörler görünüyor mu
+dmesg | tail -20        # çekirdek az önce ne tanıdı
+```
+
+`dmesg` çekirdeğin mesaj günlüğüdür. Bir cihaz takıldığında "şu cihazı gördüm, şu isimle
+tanıttım" diye buraya yazar. **Otomasyon karşılığı:** PLC'nin sistem log'una bakıp hangi
+modülün tanındığını görmek.
+
 ## 9. Süreçler (process)
 
 Çalışan her program bir **süreçtir** ve bir numarası (PID) vardır.
