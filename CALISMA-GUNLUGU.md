@@ -402,3 +402,136 @@ olacak — onlar deploy key ile sadece `pull` edecek, hiç push etmeyecek (brief
   AS200/AS300 adres tablosu (`.pdf`, 313 KB). Kaybolursa §5.2'nin kaynağı kaybolur.
 - **Pi için read-only deploy key** üretilmedi (brief §11 madde 15'in ikinci yarısı).
 - **`state` register adresi** hâlâ `TODO: VERIFY` (brief §11 madde 16).
+
+---
+
+## Collector'ın ilk çalışan sürümü — 2026-09-02
+
+Karar #22'nin (sürücü mimarisi) ilk somut hali yazıldı ve simülatörde doğrulandı.
+`machines.yaml`'ı okuyup her makineye kendi seri ayarıyla bağlanan, 1 Hz poll eden,
+rollover-güvenli fark hesaplayan servis çalışıyor. **MQTT henüz yok** — broker kurulu
+değil (brief §9.1 adım D); çıktı journal'a ve isteğe bağlı bir JSONL dosyasına gidiyor.
+
+### Yazılan dosyalar
+
+| Dosya | Satır | Ne yapar |
+|---|---|---|
+| `collector.py` | 217 | Giriş noktası: argümanlar, log kurulumu, başlatma, temiz kapanış |
+| `config.py` | 317 | `machines.yaml` yükleme ve doğrulama |
+| `counters.py` | 208 | Rollover-güvenli fark — projenin en riskli aritmetiği |
+| `worker.py` | 262 | Makine başına thread: bağlan, sabit periyotla poll et, hatayı atlat |
+| `clock.py` | 121 | chrony senkron mu? Pi 5'te RTC yok (brief §4.2) |
+| `sink.py` | 278 | §12.2 mesajını kurar, journal + dönen JSONL'e yazar |
+| `drivers/` | 5 dosya | `base`, `_modbus_common`, `modbus_rtu`, `modbus_tcp`, kayıt tablosu |
+| `tools/dvp_sim.py` | 261 | Sahte DVP-SS2 — gerçek donanımda kurulamayan testler için |
+| `machines.sim.yaml` | — | Simülatör config'i, ayrı dosyada |
+| `systemd/andon-collector.service` | — | Pi'de servis olarak koşturmak için |
+
+### Brief ile çelişki ve nasıl çözüldü
+
+Brief §5.1 ve Karar #3 **"farkları sunucuda hesapla"** diyor; §12.2 mesaj şemasında da ham
+totalizer taşınıyor, fark değil. İstenen ise collector'da fark hesabıydı.
+
+**Çözüm:** ham sayaç **kanonik alan olarak kaldı**, fark `derived` bloğunda **türetilmiş**
+alan olarak eklendi. Karar #3 bozulmuyor. Gerekçe üç madde:
+
+1. Operatör ekranı §7.1 gereği sunucu gitse de "şu andan itibaren üretim" göstermek zorunda.
+2. Sayaç sıfırlanması ve bozuk okuma **ancak ölçüm anında** yakalanabilir — altı saat sonra
+   veritabanında değil.
+3. Sunucu aynı farkı ham değerden SQL'de yeniden hesaplayacak; iki hesap birbirini denetler.
+
+Brief §5.1'e göre yeni alan eklemek serbest, mevcut alanın anlamını değiştirmek yasak.
+`derived` yeni bir alan; hiçbir mevcut alanın anlamı değişmedi.
+
+### Fark hesabının çekirdeği
+
+Rollover modüler aritmetikle bedavaya çözülüyor: `(şimdiki − önceki) % 2**32`.
+**Ama aynı formül sayaç sıfırlanmasını dört milyar parçalık sahte bir farka çeviriyor** —
+matematik açısından reset ile rollover ayırt edilemez.
+
+Ayıran şey makullük: `tavan = max_delta_per_second × (geçen_süre + 1)`. Tavan aşılırsa
+collector **sayı uydurmuyor**, `delta = null` yazıp sebebini yanına koyuyor
+(`counter_reset_suspected` veya `implausible_jump`). Ham değer her durumda yayınlanıyor.
+
+`0` yazmak "bu saniyede parça üretilmedi" iddiasıdır ve yanlış olabilir; `null` "hesaplayamadım"
+der. Brief §14.2 sayım doğruluğunu en üste koyuyor.
+
+### Testler — üçü de geçti
+
+Hiçbiri gerçek PLC'de yapılamaz, üçü de `tools/dvp_sim.py` ile koşuldu.
+
+**1. 32-bit rollover** — `--start 0xFFFFFFF0 --rate 60`
+
+```
+seq=13  total=4294967294 (+1)
+seq=14  total=4294967295 (+1)
+seq=15  total=0 (+1)
+INFO  telemetry: SIM01: 32-bit counter wrapped, delta handled correctly
+seq=16  total=1 (+1)
+```
+
+JSONL'deki ham kayıt:
+
+```json
+{"seq": 15, "counters": {"total": 0}, "state": 2,
+ "derived": {"total_delta": 1, "total_wrapped": true}}
+```
+
+**Brief §14.2'deki "32-bit rollover" satırı kapandı.**
+
+**2. Sayaç sıfırlanması** — `--start 5000 --reset-after 8`
+
+```
+seq=6  total=5007 (+1)
+seq=7  total=0 (-)
+WARNING telemetry: SIM01: total_anomaly = counter_reset_suspected (raw=0)
+        - delta not trusted, raw value still published
+seq=8  total=1 (+1)
+```
+
+Dört milyarlık sahte fark üretilmedi. Ham değer yayınlanmaya devam etti.
+
+**3. PLC'nin susması ve geri gelmesi** — simülatör 8. saniyede öldürüldü, 16. saniyede
+yeniden başlatıldı.
+
+```
+WARNING worker: SIM01: 3 consecutive read failures, reopening the link
+WARNING worker: SIM01: connect failed (attempt 1), retrying in 1s
+WARNING worker: SIM01: connect failed (attempt 2), retrying in 2s
+WARNING worker: SIM01: connect failed (attempt 3), retrying in 4s
+INFO    worker: SIM01: reconnected after 3 failed attempt(s)
+INFO    telemetry: SIM01  seq=7  total=202 (+95)
+```
+
+Kesinti boyunca sayaç 95 ilerlemişti ve fark **doğru** hesaplandı, anomali sayılmadı —
+çünkü tavan geçen süreyle ölçekleniyor. Bu, brief §4.3'teki "Pi döndüğünde sayacı okur,
+fark bozulmamıştır" ilkesinin koddaki karşılığı.
+
+Zamanlama da kontrol edildi: ardışık `ts` damgaları 1,000 sn aralıklı, kayma yok
+(`time.monotonic()` tabanlı sabit periyot).
+
+### İlk koşuda bulunan iki kusur, düzeltildi
+
+1. **Backoff yanlış yerden başlıyordu.** Okuma hataları ile bağlantı hataları aynı sayacı
+   paylaşıyordu, bu yüzden ilk yeniden bağlanma denemesi 1 saniye yerine 8 saniye bekliyordu
+   — filo sağlık sayfasında ölü makine gibi görünecek kadar uzun. İki ayrı sayaca bölündü.
+2. **pymodbus her bağlantı hatasını kendi ERROR satırıyla ikinci kez basıyordu.** Aynı olay
+   için iki satır, gerçek arızayı okumayı zorlaştırır. Kütüphane susturuldu; kayıt
+   collector'ın kendi mesajları. `--log-level DEBUG` ile geri açılıyor.
+
+### Test ortamı
+
+Kod PC'de yazıldı (Karar #27). Testler PC üzerindeki Linux ortamında, `pymodbus 3.6.9` +
+`pyserial 3.5` ile koşuldu. **Pi'de henüz denenmedi** — sıradaki iş.
+
+### Hâlâ açık
+
+- **Gerçek PLC ile denenmedi.** Bench DVP-SS2'de `collector.py --once` koşturulacak.
+- **`state` register adresi hâlâ yok** (brief §11 madde 16). `machines.yaml`'da `null`,
+  collector o alanı sessizce atlıyor. Simülatör 0x1130'u kullanıyor ama bu **uydurma bir
+  adres** — gerçek makinede hangi D register'ı olacağı kararlaştırılmadı.
+- **MQTT sink'i yok.** `sink.py`'ye bir sınıf olarak eklenecek, broker kurulunca.
+- **Store-and-forward kuyruğu yok.** Fark hesabının tabanı bellekte; servis yeniden
+  başlayınca bir örneklik boşluk oluyor (ham değer etkilenmiyor).
+- **`pymodbus` server API'si hafızadan yazıldı.** Simülatör çalıştı, yani doğru çıktı —
+  ama `zero_mode` ve `StartTcpServer` imzaları kütüphane sürümü değişirse ilk bakılacak yer.

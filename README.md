@@ -32,4 +32,5 @@ Mimari kararların gerekçeleri `andon-proje-brifi.md` içinde, öğrenme aşama
 | `13-modbus-ve-seri-haberlesme.md` | RS-485, Modbus, 32-bit tuzakları, `pymodbus` | Faz 1 adım E |
 | `14-ansible-ve-filo-yonetimi.md` | Inventory, playbook, Vault | Faz 2 |
 | `15-grafana-ve-gosterim.md` | Dashboard, kiosk, Grafana vs Power BI | Faz 5 |
+| `16-collector-ve-surucu-mimarisi.md` | Sürücü deseni, rollover, mesaj şeması, simülatör | Faz 1 adım E |
 | `99-komut-sozlugu.md` | Tüm komutlar, tek satırlık karşılıklarıyla | Her zaman |

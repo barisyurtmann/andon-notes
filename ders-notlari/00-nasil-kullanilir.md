@@ -21,7 +21,7 @@ Bu klasör, projede ihtiyaç duyulan kavramların ve komutların sade notudur.
 |---|---|
 | **Şimdi** (Faz 0–1 başı) | 01 Linux, 02 SSH, 03 Git, 04 Pi donanım, 05 Pi yazılım, 07 Ağ |
 | **Aşama 3'te** | 08 systemd, 09 Python |
-| **Faz 1 ilerleyince** | 06 YAML, 10 MQTT, 11 Docker, 13 Modbus |
+| **Faz 1 ilerleyince** | 06 YAML, 10 MQTT, 11 Docker, 13 Modbus, **16 Collector** |
 | **Faz 1 sonu / Faz 2** | 12 SQL & TimescaleDB, 14 Ansible |
 | **Faz 5** | 15 Grafana |
 | **Her zaman** | 99 Komut sözlüğü |
@@ -45,6 +45,7 @@ Bu klasör, projede ihtiyaç duyulan kavramların ve komutların sade notudur.
 | `13-modbus-ve-seri-haberlesme.md` | RS-485, Modbus RTU/TCP, 32-bit tuzakları, `pymodbus` |
 | `14-ansible-ve-filo-yonetimi.md` | Inventory, playbook, idempotency, Vault |
 | `15-grafana-ve-gosterim.md` | Dashboard, kiosk, provisioning, Grafana vs Power BI |
+| `16-collector-ve-surucu-mimarisi.md` | Sürücü deseni, rollover matematiği, mesaj şeması, simülatörle test |
 | `99-komut-sozlugu.md` | Tüm komutlar, tek satırlık karşılıklarıyla |
 
 ## Nerede ne var
