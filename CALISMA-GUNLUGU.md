@@ -275,3 +275,68 @@ tersidir (`hi_lo`). Değerler küçük ve birbirinden farklı seçildi ki karı�
 **Bu test kapatacak [DOĞRULA] maddeleri:** brief §5.1 (word sırası), §5.2 (adres tabanı).
 
 Sonuç henüz alınmadı.
+
+---
+
+## Word sırası doğrulandı — 2026-09-02
+
+**Ham çıktı (Pi `andon-bench`, bench DVP-SS2):**
+
+```
+Baglandi: /dev/ttyUSB0 9600 7E1 ASCII, slave=1
+Okunuyor: adres 0x112C (4396) = D300, 2 register
+ham registerlar : [2, 1]
+  lo_hi yorumu  : 65538
+  hi_lo yorumu  : 131073
+  >>> SONUC: word sirasi = lo_hi  (ilk register dusuk word)
+Port kapatildi.
+```
+
+WPLSoft'tan `D300 = 2`, `D301 = 1` girilmişti.
+
+### Bu tek okuma üç şeyi birden kapattı
+
+1. **Word sırası = `lo_hi`.** İlk register düşük word. 32-bit değer =
+   `(reg[1] << 16) | reg[0]`. Brief §5.1'deki `[DOĞRULA]` kapandı.
+2. **Adres tabanı doğru.** `0x112C`'den okunan değerler gerçekten D300/D301 idi — yani
+   D tabanı `0x1000` sadece vendor tablosunda değil sahada da doğru. Brief §5.2 `[DOĞRULANDI]`.
+3. **Dönüşüm aritmetiği doğru.** `D000 = 44097 → D300 = 44397 → 44397 − 40001 = 4396 = 0x112C`
+   zinciri işliyor. Artık her D register'ının adresini hesapla ile bulabiliriz.
+
+**Neden 2 ve 1 seçildi:** küçük, birbirinden farklı ve ikisi de tek başına anlamlı değil.
+Simetrik bir değer (örneğin `1, 1`) hiçbir şey kanıtlamazdı; büyük değerler ekranda karışırdı.
+
+**Bu sonuç DVP ailesine ait.** AS serisi veya başka bir marka geldiğinde word sırası o aile
+için ayrıca ölçülecek. `machines.yaml`'daki `order` alanı tam bu yüzden makine bazlı.
+
+### Karar #5 iptal, Karar #28 yürürlükte
+
+Brief §5.3 "COM2'yi her yerde RTU 19200 8-N-1'e standardize et" diyordu. Tarama sonucu bunu
+geçersiz kıldı: fabrika ayarı (ASCII 9600 7-E-1) hiçbir PLC değişikliği olmadan cevap veriyor.
+
+Hesap:
+
+| | RTU'ya standardize | Fabrika ayarında bırak |
+|---|---|---|
+| Hız kazancı | 1 Hz poll'de ölçülemez (~30–50 ms vs 1000 ms bütçe) | — |
+| Maliyet | 13 planlı duruş penceresi | 0 |
+| Risk | Doğrulanmamış `D1120`/`M1143` bitlerine yazma → haberleşme kaybı | 0 |
+| Kod tarafı | Config'de 4 satır az | Config'de 4 satır çok |
+
+Collector zaten çok protokollü (Karar #22) — yani "karmaşayı kaldırmak" aslında karmaşayı
+PLC'den config'e taşımaktan ibaretti. Dört satır için 13 duruş alınmaz.
+
+**İstisna:** bir makinede fabrika ayarı çalışmazsa veya tek RS-485 üzerine birden fazla PLC
+(multi-drop) bağlanacaksa, sadece o makinelerde ayar değiştirilir.
+
+### Güncellenen dosyalar
+
+- `andon-proje-brifi.md` → **v2.7** (Claude Project + bu repo'da çalışma kopyası)
+- `andon-collector/machines.yaml` → `serial:` bloğu, `slave: 1`, `addr: 0x112C`, `order: lo_hi`
+- `KURULUM-ADIMLARI.md` → H.3 ✅, H.4 sonuç
+
+### Hâlâ açık
+
+- **`state` hangi D register'ında olacak?** Henüz kararlaştırılmadı. `parts_total` doğrulandı,
+  `state` `TODO: VERIFY` olarak duruyor.
+- AS serisi Modbus adres tablosu elde yok (Grup 3 / AS218TX için gerekli).

@@ -236,3 +236,101 @@ imkânsız çıkan her makinede aynı yol geçerli.
 
 ⚠️ Kule lambası tap'i **emniyet devresine müdahale etmez**: optokuplör lamba hattına paralel
 bağlanır, akım çekmez, arıza durumunda lamba davranışını değiştirmez (brief §13.4).
+
+---
+
+## Word sırası (word order) — ölçüldü, artık tahmin değil
+
+### Problem nedir
+
+Modbus register'ları **16 bit**tir. Yani tek bir register en fazla 65535 tutabilir. Bir üretim
+sayacı bunu bir vardiyada aşar. Çözüm: iki ardışık register kullanıp 32 bit yapmak.
+
+```
+D300 = 0x0002   (16 bit)
+D301 = 0x0001   (16 bit)
+                 ────────
+birleşince     = 32 bit sayı
+```
+
+Ama **hangisi düşük yarım?** İki ihtimal var ve ikisi de yaygın:
+
+| Varsayım | Formül | Sonuç (D300=2, D301=1) |
+|---|---|---|
+| `lo_hi` — ilk register düşük | `(reg[1] << 16) \| reg[0]` | 65538 |
+| `hi_lo` — ilk register yüksek | `(reg[0] << 16) \| reg[1]` | 131073 |
+
+İkisi arasında **65536 kat** fark var. Ve kötü haber: yanlış seçersen sistem *çalışıyor gibi
+görünür*. Sayaç artar, grafik yükselir, kimse fark etmez — ta ki sayaç 65536'yı geçip
+rollover olana kadar. O anda üretim rakamı saçmalar ve kimse neden olduğunu bilemez.
+
+Bu yüzden bu, tahmin edilecek değil **ölçülecek** bir şeydir.
+
+### `<<` ve `|` ne demek
+
+İki bit operatörü:
+
+**`x << 16`** — sola kaydırma (left shift). Sayının bitlerini 16 basamak sola iter.
+Etkisi: `x × 65536`. Yani sayıyı "yüksek yarıya" yerleştirir.
+
+```
+      1  =  0000 0000 0000 0001
+1 << 16  =  0000 0000 0000 0001 0000 0000 0000 0000   (= 65536)
+```
+
+**`a | b`** — bit-OR. İki sayıyı bit bit birleştirir; herhangi birinde 1 varsa sonuç 1.
+Yüksek yarım ile düşük yarım çakışmadığı için burada "yan yana yapıştır" anlamına gelir.
+
+```
+0000...0001 0000 0000 0000 0000   (65536)
+0000...0000 0000 0000 0000 0010   (2)
+─────────────────────────────── OR
+0000...0001 0000 0000 0000 0010   (65538)
+```
+
+PLC tarafında karşılığı: `DMOV` gibi 32-bit komutların iki register'ı nasıl birleştirdiği.
+Aynı iş, farklı dil.
+
+### Ölçüm — 2026-09-02, bench DVP-SS2
+
+**Yöntem:** WPLSoft device monitor'den elle `D300 = 2`, `D301 = 1` girildi. Sonra `0x112C`
+adresinden **tek istekte** 2 register okundu.
+
+**Sonuç:** `[2, 1]` → **`lo_hi`**. İlk register düşük word.
+
+Değerler neden 2 ve 1: küçük, birbirinden farklı, karışma ihtimali yok. Simetrik bir değer
+(`1, 1`) hiçbir şey kanıtlamazdı.
+
+**Bu sonuç Delta DVP ailesine aittir.** Başka bir marka geldiğinde aynı test o marka için
+tekrarlanır. `machines.yaml`'daki `order` alanı bu yüzden makine bazlıdır — evrensel bir
+sabit değildir.
+
+### Neden tek istekte okunur
+
+```python
+# DOĞRU - atomik
+rr = client.read_holding_registers(address=0x112C, count=2, slave=1)
+
+# YANLIŞ - iki ayrı istek
+lo = client.read_holding_registers(address=0x112C, count=1, slave=1)
+hi = client.read_holding_registers(address=0x112D, count=1, slave=1)
+```
+
+Yanlış versiyonda iki istek arasında birkaç milisaniye geçer. Sayaç tam o anda 65535'ten
+65536'ya geçerse: düşük word yeni (0), yüksek word eski (0) okunur → sonuç 0. Üretim sayacı
+bir anda sıfırlanmış görünür.
+
+Bu, yılda birkaç kez olan ve log'a hiçbir hata yazmayan türden bir hatadır. Tek istek bunu
+protokol seviyesinde imkânsız kılar: PLC iki register'ı aynı tarama anında paketler.
+
+### Rollover'a dayanıklı fark hesabı
+
+Sayaç 32-bit maksimumu (4.294.967.295) aşınca başa döner. Fark hesabı bunu ele almalı:
+
+```python
+delta = (yeni - eski) & 0xFFFFFFFF
+```
+
+`& 0xFFFFFFFF` = "sadece alttaki 32 biti al". Negatif çıkan farkı otomatik olarak doğru
+pozitif değere çevirir. Çıplak `yeni - eski` yazarsan rollover anında büyük negatif bir sayı
+alırsın ve o vardiyanın üretimi eksi görünür.

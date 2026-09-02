@@ -145,7 +145,7 @@ gereken gerçek bir iş olduğunda. İptal değil, erteleme: read-only root aç�
 
 ---
 
-## H. Modbus: DVP-SS2 ile ilk okuma ⏸ **devam ediyor**
+## H. Modbus: DVP-SS2 ile ilk okuma ✅
 
 ⚠️ **Kullanılan PLC bench'te olmalı, hiçbir makineye bağlı olmamalı.**
 
@@ -187,7 +187,7 @@ Script kaynağı: `andon-collector/tools/scan_dvp.py`
 Bunlar DVP-SS2 COM2 **fabrika varsayılanı**. PLC'ye hiçbir yazma yapılmadan
 okuma mümkün — yani Bölüm I (RTU'ya çevirme) zorunlu değil. Bkz. aşağıdaki not.
 
-**H.4 — Adres tabanı ve word sırası doğrulaması**
+**H.4 — Adres tabanı ve word sırası doğrulaması** ✅
 
 WPLSoft device monitor'den elle gir: `D300 = 2`, `D301 = 1`, `D302 = 5`.
 Sonra `0x112C` adresinden **tek istekte 2 register** oku.
@@ -211,7 +211,18 @@ milisaniyede sayac artabilir → yarısı eski yarısı yeni bozuk bir değer ç
 | `[1, 2]` | Word sırası hi_lo |
 | Başka bir şey | Adres tabanı yanlış — manuelden teyit et |
 
-**Kapanacak [DOĞRULA] maddeleri:** brief §5.1 (word sırası), §5.2 (adres tabanı).
+**[ÖLÇÜLDÜ] 2026-09-02 — sonuç:** okuma `[2, 1]` geldi.
+
+| Bulgu | Sonuç |
+|---|---|
+| Word sırası | **`lo_hi`** — ilk register düşük word. `(reg[1] << 16) | reg[0]` |
+| Adres tabanı | **0x1000 doğru** — 0x112C gerçekten D300 |
+| Dönüşüm aritmetiği | **Doğru** — D000=44097, −40001 kuralı işliyor |
+
+**Kapanan [DOĞRULA] maddeleri:** brief §5.1 (word sırası), §5.2 (adres tabanı). İkisi de
+brief v2.7'de `[DOĞRULANDI]` oldu.
+
+**Sonraki:** `state` için hangi D register'ının kullanılacağı henüz belirlenmedi.
 
 ---
 
