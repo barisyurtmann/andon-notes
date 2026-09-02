@@ -145,7 +145,7 @@ gereken gerçek bir iş olduğunda. İptal değil, erteleme: read-only root aç�
 
 ---
 
-## H. Modbus: DVP-SS2 ile ilk okuma ⬜ **şimdi burasıı**
+## H. Modbus: DVP-SS2 ile ilk okuma ⏸ **devam ediyor**
 
 ⚠️ **Kullanılan PLC bench'te olmalı, hiçbir makineye bağlı olmamalı.**
 
@@ -166,7 +166,7 @@ ls -l /dev/ttyUSB*
 dmesg | tail -20
 ```
 
-**H.3 — Tarama (hiçbir şey yazmaz)**
+**H.3 — Tarama (hiçbir şey yazmaz)** ✅
 ```bash
 cd ~/andon-lab && source .venv/bin/activate
 python3 scan_dvp.py
@@ -175,10 +175,35 @@ Script kaynağı: `andon-collector/tools/scan_dvp.py`
 
 **Doğrulama:** en az bir satırda `CEVAP VAR`. Ayarları kaydet.
 
+**[ÖLÇÜLDÜ] 2026-09-02 — sonuç:**
+
+| Parametre | Değer |
+|---|---|
+| Framer | **ASCII** |
+| Baud | **9600** |
+| Veri / eslik / stop | **7-E-1** |
+| Slave (istasyon) | **1** |
+
+Bunlar DVP-SS2 COM2 **fabrika varsayılanı**. PLC'ye hiçbir yazma yapılmadan
+okuma mümkün — yani Bölüm I (RTU'ya çevirme) zorunlu değil. Bkz. aşağıdaki not.
+
 **H.4 — Adres tabanı ve word sırası doğrulaması**
 
 WPLSoft device monitor'den elle gir: `D300 = 2`, `D301 = 1`, `D302 = 5`.
-Sonra `0x112C` adresinden 2 register oku.
+Sonra `0x112C` adresinden **tek istekte 2 register** oku.
+
+Script: `andon-collector/tools/read_test.py` (sadece okur, hiçbir yazma içermez)
+
+```bash
+cd ~/andon-lab && source .venv/bin/activate
+python3 read_test.py
+```
+
+Adres hesabı (vendor tablosundan, [DOĞRULANDI]):
+`D000 = 44097` → `D300 = 44097 + 300 = 44397` → protokol 0-tabanlı `44397 - 40001 = 4396 = 0x112C`
+
+⚠️ İki register **ayrı ayrı değil, tek istekte** okunur. Ayrı okunursa aradaki
+milisaniyede sayac artabilir → yarısı eski yarısı yeni bozuk bir değer çıkar.
 
 | Okunan | Anlamı |
 |---|---|
@@ -190,7 +215,11 @@ Sonra `0x112C` adresinden 2 register oku.
 
 ---
 
-## I. COM2'yi Modbus RTU'ya standardize et ⬜
+## I. COM2'yi Modbus RTU'ya standardize et ⬜ **muhtemelen gereksiz — karar bekliyor**
+
+⚠️ **2026-09-02 sonrası durum:** H.3 fabrika ayarıyla (ASCII 9600 7-E-1) cevap verdi.
+1 Hz poll'de ASCII 9600'ün maliyeti ~30–50 ms — fazlasıyla yeterli. 13 üretim PLC'sine
+yazma yapmak, kazandırdığından fazla risk taşıyor. Brief §5.3 / Karar #5 gözden geçirilecek.
 
 Sadece H.3'te cevap alınamazsa veya ayarları değiştirmek gerekirse.
 

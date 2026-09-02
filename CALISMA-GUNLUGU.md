@@ -254,3 +254,24 @@ okunacak; `[2, 1]` beklenen sonuç.
 
 Öğrenme yolu **Aşama 3** — Python scriptinden `systemd` servisine. Projenin yazılım
 iskeleti burada başlıyor.
+
+---
+
+## Word sırası testi hazırlandı (2026-09-02)
+
+`andon-collector/tools/read_test.py` yazıldı. Sadece okuyan bir betik: `0x112C`
+(= D300) adresinden **tek istekte 2 register** okur, sonucu iki farklı varsayımla
+(`lo_hi` ve `hi_lo`) yorumlar ve hangisinin doğru olduğunu ekrana yazar.
+
+**Neden tek istek:** iki register ayrı ayrı okunursa aradaki milisaniyede sayaç
+artabilir. O zaman düşük word yeni, yüksek word eski olur ve ortaya gerçekte hiç
+var olmamış bir sayı çıkar. 32-bit sayaçlarda bu, sessizce yanlış OEE üreten
+klasik hatadır.
+
+**Test yöntemi:** WPLSoft device monitor'den elle `D300 = 2`, `D301 = 1` girilir.
+Okuma `[2, 1]` gelirse ilk register düşük word'dür (`lo_hi`); `[1, 2]` gelirse
+tersidir (`hi_lo`). Değerler küçük ve birbirinden farklı seçildi ki karışmasın.
+
+**Bu test kapatacak [DOĞRULA] maddeleri:** brief §5.1 (word sırası), §5.2 (adres tabanı).
+
+Sonuç henüz alınmadı.
