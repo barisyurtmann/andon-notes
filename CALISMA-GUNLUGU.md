@@ -222,6 +222,34 @@ gerçek PLC ile gidiliyor. Sıra "önce oku, sonra yaz" (brief §5.5):
 
 **Kullanılan PLC bench'te, hiçbir makineye bağlı değil.**
 
+### Modbus adres tablosu doğrulandı (2026-09-02)
+
+**Tarama sonucu:** DVP-SS2 COM2, **hiçbir ayar değiştirilmeden**, fabrika ayarıyla cevap
+veriyor: **ASCII, 9600, 7-E-1, slave 1.**
+
+**Bunun büyük sonucu:** brief §5.3 / Karar #5 "COM2 her yerde RTU 19200'e standardize edilecek"
+diyordu. Zaten hepsi fabrika ayarındaysa, standardize etmek için 13 üretim PLC'sine yazmanın
+karşılığı sadece biraz verimlilik; bedeli 13 makinede duruş. 1 Hz'de birkaç register okumak
+ASCII 9600'de ~30–50 ms sürüyor — bol bol yeterli. **Öneri: ayarı olduğu gibi bırakmak.**
+⚠️ Bir bench PLC'nin fabrika ayarında olması sahadaki 13 makineyi kanıtlamaz — Faz 0'da her
+makinede `scan_dvp.py` çalıştırılıp yetenek matrisine yazılacak (makinelere hiçbir şey
+yazmadan yapılabilir).
+
+**Vendor adres tablosu geldi:** `vendor-docs/ES-EX-...-MODBUS_ADRESLERI.xls`. Tabanlar
+doğrulandı ve hafızadan yazılan tabloyla **birebir tutuyor**: X=0x0400, Y=0x0500, T=0x0600,
+M=0x0800, C=0x0E00, D=0x1000. Ayrıca D1120=0x1460, D1121=0x1461, M1120=0x0C60 coil,
+M1143=0x0C77 coil — dördü de SS2'de destekli.
+
+**Yaşanan hata ve düzeltmesi:** Excel'in hex sütununu programatik okurken ham değerler
+(`17`, `0`) görülüp "dosya hatalı" sanıldı. Sahibin itirazı üzerine incelendi: hücrelerde
+**özel sayı biçimi** var (`\1000` → 17'yi "1017" gösteriyor). **Dosya doğru, yorum yanlıştı.**
+Kalan kural: otomatik çıkarımda `MODBUS ADRESLERİ` sütunu kullanılacak, hex sütunu değil.
+
+**Hâlâ açık:** word sırası. WPLSoft'tan D300=2, D301=1 girilip 0x112C'den 2 register
+okunacak; `[2, 1]` beklenen sonuç.
+
+**Gelmedi:** AS serisi adres dosyası (Grup 3 / AS218TX için gerekecek).
+
 ### Sıradaki adım
 
 Öğrenme yolu **Aşama 3** — Python scriptinden `systemd` servisine. Projenin yazılım

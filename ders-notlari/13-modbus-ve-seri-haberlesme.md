@@ -61,29 +61,67 @@ S7-1500 üzerinden gitseydik ASCII cihazlara erişemeyecektik (brief §3.2).
 
 Bizim okuyacağımız D register'ları **holding register**'dır.
 
-### Delta DVP adres tabanları — **[DOĞRULA]**
+### Delta DVP adres tabanları — **[DOĞRULANDI]**
 
-| Cihaz | Modbus base |
-|---|---|
-| X girişler | 0x0400 |
-| Y çıkışlar | 0x0500 |
-| T | 0x0600 |
-| M röleler | 0x0800 |
-| C sayaçlar | 0x0E00 |
-| D register | 0x1000 |
+**Kaynak:** `vendor-docs/ES-EX-SS-SA-SX-SC-EH-SS2-SX2-SA2-ES2-SV-SV2_PLC_MODBUS_ADRESLERI.xls`
+(2026-09-02). Ayrıca bench'te `0x1000`'den cevap alınarak deneysel olarak da doğrulandı.
 
-Yani `D0` = 0x1000, `D300` = 0x112C.
+| Cihaz | Excel'deki ilk adres | 0-tabanlı taban | Register tipi |
+|---|---|---|---|
+| S0 | 1 | `0x0000` | coil |
+| X0 | 11025 | `0x0400` | discrete input |
+| Y0 | 1281 | `0x0500` | coil |
+| T0 (word) | 41537 | `0x0600` | holding |
+| M0 | 2049 | `0x0800` | coil |
+| C0 (word) | 43585 | `0x0E00` | holding |
+| D0 | 44097 | `0x1000` | holding |
 
-⚠️ Bu tablo hafızadan yazıldı, **DVP-SS2 manuelinden teyit edilmedi.** Sadece Delta DVP için
-geçerlidir; başka bir marka geldiğinde hiçbir işe yaramaz.
+Yani `D0` = 0x1000, `D23` = 0x1017, `D300` = 0x112C.
 
-### Off-by-one tuzağı
+**COM2 yapılandırma register'ları** (aynı kaynak, `SS2/SX2` sütununda listeli):
 
-Modbus fonksiyon kodları adresleri **0-tabanlı** kullanır, ama pek çok doküman ve araç
-**1-tabanlı** (40001 tarzı) gösterir. `pymodbus` 0-tabanlı ister.
+| Register | Excel | 0-tabanlı | Ne |
+|---|---|---|---|
+| `D1120` | 45217 | `0x1460` | protokol / baud / format |
+| `D1121` | 45218 | `0x1461` | istasyon adresi |
+| `M1120` | 3169 | `0x0C60` coil | ayarı koru |
+| `M1143` | 3192 | `0x0C77` coil | RTU / ASCII seçimi |
+
+⚠️ Bu tablo **sadece Delta DVP** ailesi içindir. Başka bir marka geldiğinde hiçbir işe
+yaramaz; o ailenin kendi dokümanı gerekir.
+
+### Off-by-one tuzağı — gösterim farkı
+
+Modbus fonksiyon kodları adresleri **0-tabanlı** kullanır; dokümanlar ve mühendislik
+araçları genelde **1-tabanlı** `4xxxx` gösterimini kullanır. `pymodbus` 0-tabanlı ister.
+
+| Register tipi | Doküman gösterimi | Protokol adresi |
+|---|---|---|
+| Word (D, T-word, C-word) | `4xxxx` | değer − **40001** |
+| Coil (Y, M, S) | `0xxxx` | değer − **1** |
+| Discrete input (X, T-bit, C-bit) | `1xxxx` | değer − **10001** |
+
+Örnek: `D23` → Excel 44120 → `44120 − 40001 = 4119 = 0x1017`.
 
 **Kural:** bench'te bilinen bir D register'ı okuyup **beklenen değeri gördüğünü**
 doğrulamadan hiçbir adresi kesin kabul etme.
+
+### Vendor tablosunu programatik okurken: hex sütununa değil Modbus sütununa bak
+
+Bu Excel'de hex sütunu **özel sayı biçimiyle** gösteriliyor: hücre `17` sayısını tutuyor,
+biçim dizesi (`\1000`) başına "10" ekleyip ekranda **1017** gösteriyor.
+
+| Satır | Hücredeki ham değer | Biçim | Ekranda |
+|---|---|---|---|
+| D23 | `17` | `\1000` | 1017 |
+| D256 | `0` | `\1\100` | 1100 |
+| D297 | `29` | `\1\100` | 1129 |
+
+Dosya doğru; ham değeri okuyan her araç yanılır. **`MODBUS ADRESLERİ` sütunu düz sayıdır,
+biçim hilesi yoktur** — otomatik çıkarımda hep onu kullan.
+
+*(Bu, 2026-09-02'de yaşandı: ham değer okundu, "dosya hatalı" sanıldı, sahibin itirazıyla
+düzeltildi.)*
 
 ## 6. 32-bit değerler — iki tuzak
 
