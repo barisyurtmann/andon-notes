@@ -535,3 +535,31 @@ Kod PC'de yazıldı (Karar #27). Testler PC üzerindeki Linux ortamında, `pymod
   başlayınca bir örneklik boşluk oluyor (ham değer etkilenmiyor).
 - **`pymodbus` server API'si hafızadan yazıldı.** Simülatör çalıştı, yani doğru çıktı —
   ama `zero_mode` ve `StartTcpServer` imzaları kütüphane sürümü değişirse ilk bakılacak yer.
+
+### Kayıt kuralı netleşti: parça başına bir satır — 2026-09-02
+
+İlk sürüm her saniye bir kayıt yazıyordu, parça çıksın çıkmasın. **Gereksinim bu değil:**
+veritabanına her bir adetlik üretimden sonra o ürünün bilgileri yazılacak.
+
+Yeni davranış:
+
+- Sayaç 1000 → 1003 ise **üç kayıt** yazılır: `part_no` 1001, 1002, 1003. Üçü de o anda
+  okunan makine değerlerini taşır.
+- Sayaç ilerlemediyse **hiçbir şey yazılmaz.** Makine dört saat dursa o dört saatte tek
+  satır girmez.
+- Fark güvenilmezse (reset şüphesi) parça numarası üretilmez — tek bir kayıt yazılır,
+  anomali işaretiyle, ham değer kaybolmasın diye.
+
+Simülatörde doğrulandı (dakikada 180 parça = saniyede 3):
+
+```
+INFO  telemetry: SIM01  part=1004  total=1006  state=2
+INFO  telemetry: SIM01  part=1005  total=1006  state=2
+INFO  telemetry: SIM01  part=1006  total=1006  state=2
+INFO  telemetry: SIM01  part=1007  total=1009  state=2
+```
+
+Duran makine testinde (`--freeze`) 7 başarılı okuma yapıldı, **sıfır kayıt yazıldı.**
+
+Mesaja `part_no` alanı eklendi. `counters.total` o okumadaki sayaç değeri olarak kalıyor —
+aynı okumadan gelen üç parçada üçü de aynı.

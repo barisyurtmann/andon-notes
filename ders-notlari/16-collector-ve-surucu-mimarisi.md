@@ -184,9 +184,28 @@ Döngü periyodu `time.monotonic()` ile ölçülür, `datetime.now()` ile değil
 Aynı sebeple: chrony senkron olduğunu bildirmeden üretilen kayıtlar `ts_synced: false` ile
 işaretlenir. Veri atılmaz, ama sunucu bunu bilir.
 
-## 6. Mesaj şeması ve idempotency
+## 6. Kayıt ne zaman yazılır — parça başına bir satır
 
-Her okuma brief §12.2'deki mesaja dönüşür:
+**Kural: bir parça üretildiyse bir kayıt yazılır. Üretilmediyse hiçbir şey yazılmaz.**
+
+Sayaç 1000'den 1003'e çıktıysa, son okumadan beri üç parça üretilmiş demektir.
+Üç kayıt yazılır — `part_no` 1001, 1002 ve 1003 — ve her biri **o anda okunan**
+makine değerlerini taşır (durum, arıza kodu, çevrim süresi, ne okunuyorsa).
+
+Sayaç hiç ilerlemediyse o saniyede hiçbir şey yazılmaz. Makine dört saat dursa,
+o dört saatte veritabanına tek satır girmez.
+
+Üç durum parça kaydı üretmez:
+
+| Durum | Ne yapılır |
+|---|---|
+| `--once` (tek seferlik teşhis okuması) | Parça çıkmasa da okunanı gösterir — zaten amacı bu |
+| Makinede `parts_total` adresi yok | Her okuma yazılır, diğer alanlar toplanmaya devam eder |
+| Fark güvenilmez (reset şüphesi vb.) | Tek kayıt yazılır, anomali işaretiyle. **Güvenilmeyen farktan parça numarası üretilmez** — üretim uydurmak olurdu |
+
+## 7. Mesaj şeması ve idempotency
+
+Her kayıt brief §12.2'deki mesaja dönüşür:
 
 ```json
 {
@@ -194,13 +213,17 @@ Her okuma brief §12.2'deki mesaja dönüşür:
   "machine_id": "M001",
   "boot_id": "8f2a1c",
   "seq": 15,
-  "ts": "2026-09-02T11:08:39.847Z",
+  "ts": "2026-09-02T11:53:36.223Z",
   "ts_synced": true,
-  "counters": { "total": 0 },
+  "part_no": 1005,
+  "counters": { "total": 1006 },
   "state": 2,
-  "derived": { "total_delta": 1, "total_wrapped": true }
+  "derived": { "total_delta": 3 }
 }
 ```
+
+`part_no` bu kaydın hangi parçaya ait olduğudur. `counters.total` ise o
+okumadaki sayaç değeri — üç parça aynı okumadan geldiyse üçünde de aynıdır.
 
 **`msg_id` = `machine_id` + `boot_id` + `seq`.** Bu üçlü niye:
 
@@ -217,7 +240,7 @@ yapmakla aynı sonucu verir.
 `derived` bloğu brief'te yoktu, sonradan eklendi. Bu serbesttir (§5.1: "yeni alan eklemek
 serbest"); **yasak olan mevcut bir alanın anlamını değiştirmektir.**
 
-## 7. Sink — çıktının takıldığı yer
+## 8. Sink — çıktının takıldığı yer
 
 `sink.py` bugün iki şey yapar: journal'a okunur bir satır yazar, istenirse dönen bir JSONL
 dosyasına da yazar.
@@ -233,7 +256,7 @@ Mosquitto var olmadan kanıtlandı.
 > boyut sınırıyla döner. Bench ve kabul testi aracıdır (brief §9.1 F'deki vardiya sayımı
 > karşılaştırması için lazım), üretim veri yolu değil.
 
-## 8. Simülatörle test — `tools/dvp_sim.py`
+## 9. Simülatörle test — `tools/dvp_sim.py`
 
 Üç test gerçek donanımda yapılamaz:
 
@@ -252,7 +275,7 @@ Simülatör config'i `machines.sim.yaml`'da, ayrı dosyada durur. **`machines.ya
 bir makine taşımaz** — üretimde koşan config ile masaüstünde koşan config aynı dosyayı
 paylaşırsa, bir gün simülatör saha ekranında görünür.
 
-## 9. Sık karşılaşılacak hatalar
+## 10. Sık karşılaşılacak hatalar
 
 | Belirti | Muhtemel sebep |
 |---|---|
@@ -263,7 +286,7 @@ paylaşırsa, bir gün simülatör saha ekranında görünür.
 | `first_sample` anomalisi | Servis yeni başladı. İlk okumanın karşılaştıracağı değer yok. Bir sonraki okumadan itibaren normale döner |
 | `counter_reset_suspected` | Sayaç geriye gitti. Ya PLC'de reset var, ya adres yanlış, ya word sırası bu aile için farklı |
 
-## 10. İlgili notlar
+## 11. İlgili notlar
 
 - `13-modbus-ve-seri-haberlesme.md` — Modbus, RS-485, adres aritmetiği
 - `09-python-servis-temelleri.md` — Python temelleri
