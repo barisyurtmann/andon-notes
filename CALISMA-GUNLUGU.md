@@ -340,3 +340,65 @@ PLC'den config'e taşımaktan ibaretti. Dört satır için 13 duruş alınmaz.
 - **`state` hangi D register'ında olacak?** Henüz kararlaştırılmadı. `parts_total` doğrulandı,
   `state` `TODO: VERIFY` olarak duruyor.
 - AS serisi Modbus adres tablosu elde yok (Grup 3 / AS218TX için gerekli).
+
+---
+
+## GitHub'a ilk gerçek push — 2026-09-02
+
+Brief §11 madde 15'in ilk yarısı kapandı. `andon-collector` ve `andon-notes` artık GitHub'da.
+
+| Repo | Push edilen | İçerik |
+|---|---|---|
+| `andon-collector` | 3 commit | `machines.yaml` (+49/−16), `tools/read_test.py` (151 satır), `tools/scan_dvp.py` (168 satır) |
+| `andon-notes` | 17 commit | 21 dosya, 5953 satır — günlük, `KURULUM-ADIMLARI.md`, 16 ders notu, brief v2.7 çalışma kopyası |
+
+Doğrulama: `git status -sb` her iki repo'da `## main...origin/main` — `ahead` yok.
+`git log --oneline -1 origin/main` uzak dalların gerçekten `03d14d2` ve `09c6149`'a
+ilerlediğini gösterdi.
+
+### Push öncesi denetim — üç kontrol
+
+**1. Secret taraması: temiz.** `password|token|api_key|PRIVATE KEY` kalıpları tarandı.
+Çıkan tek şey `ders-notlari/11-docker.md` ve `15-grafana-ve-gosterim.md` içindeki
+`${DB_PASSWORD}` / `${GRAFANA_DB_PASSWORD}` — bunlar placeholder, gerçek değer değil.
+Brief §13.1 ihlali yok.
+
+**2. `.gitignore` boşluğu bulundu ve kapatıldı.** `andon-notes/.gitignore` sadece üç satırdı
+(`*.bak`, `~$*`, `.DS_Store`); collector'daki secret bloğu orada yoktu. Şu an notes'ta secret
+tutulmuyor ama ileride `.env` veya Vault parolası bu klasöre düşerse sessizce commit'lenirdi.
+İki dosya artık aynı secret bloğunu taşıyor.
+
+**3. `andon-collector`'da artık bir `master` dalı çıktı.** `main` ile ortak atası yoktu
+(orphan). İçeriği `main`'in ilk commit'i `61c3503` ile birebir aynıydı — repo'nun hem yerelde
+hem GitHub'da başlatılmasından kalan ikinci başlangıç. `git branch -D master` ile silindi,
+kaybolan benzersiz içerik yok. Teşhis ve genel kural: `ders-notlari/03-git.md` §12.
+
+### Push'u neden Claude çalıştıramadı
+
+GitHub kimlik bilgisi **Windows Credential Manager'da**, kullanıcı hesabına bağlı duruyor.
+Claude'un eriştiği kabuk klasöre ulaşabiliyor ama o kasaya ulaşamıyor:
+
+```
+fatal: could not read Username for 'https://github.com': terminal prompts disabled
+```
+
+Bu bir arıza değil, tasarımın kendisi. **İş bölümü buradan çıkıyor:** dosya düzenleme ve
+commit her yerden yapılabilir, `push` PC'den yapılır. Aynı ayrım Pi'ler için de geçerli
+olacak — onlar deploy key ile sadece `pull` edecek, hiç push etmeyecek (brief §4.7).
+
+### Yeni ders notu içeriği
+
+`ders-notlari/03-git.md` dört bölüm büyüdü (191 → 304 satır):
+
+- §10 `origin/main` bir yerel işaretçidir; `ahead`/`behind` okuma, `origin/main..main` farkı
+- §11 Kimlik doğrulama yöntemleri: Credential Manager, PAT, SSH key, deploy key
+- §12 Orphan branch: teşhis (`git merge-base`), güvenli silme, tekrar oluşmaması için kural
+- §13 Push öncesi kontrol listesi (secret taraması dahil) ve push sonrası doğrulama
+
+### Hâlâ açık
+
+- **`vendor-docs` git'te değil.** Brief §15 madde 3 "vendor dokümanları git'te" diyor;
+  klasör şu an sadece PC'nin diskinde. İki dosya var: DVP adres tablosu (`.xls`, 3,1 MB) ve
+  AS200/AS300 adres tablosu (`.pdf`, 313 KB). Kaybolursa §5.2'nin kaynağı kaybolur.
+- **Pi için read-only deploy key** üretilmedi (brief §11 madde 15'in ikinci yarısı).
+- **`state` register adresi** hâlâ `TODO: VERIFY` (brief §11 madde 16).

@@ -1,3 +1,14 @@
+# secrets - never commit these (brief 13.1)
+.env
+*.key
+*.pem
+secrets.yaml
+vault-password*
+
+# local noise
 *.bak
 ~$*
 .DS_Store
+__pycache__/
+*.pyc
+.venv/

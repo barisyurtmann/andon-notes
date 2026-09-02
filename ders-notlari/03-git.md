@@ -189,3 +189,116 @@ git tag v1.0                        # sürüm etiketi (PLC program sürümüyle 
 
 `git tag` bu projede işe yarayacak: brief §5.1'deki öneri, PLC programına git tag'iyle
 eşleşen bir sürüm numarası (D308) yazmak.
+
+## 10. `origin` gerçekte nedir — ve `ahead` / `behind` ne demek
+
+`git clone` veya `git remote add` yaptığında git, uzaktaki repo için yerel diskinde bir
+**kopya işaretçi** tutar: `origin/main`. Bu, "GitHub'ın şu andaki hali" **değildir** —
+"git'in en son konuştuğunda GitHub böyleydi" bilgisidir. İnternet olmadan da okunur.
+
+```
+main          ← senin çalıştığın dal (yereldeki gerçek)
+origin/main   ← GitHub'ın en son bilinen hali (yerelde tutulan not)
+```
+
+Bu ikisini karşılaştıran komut:
+
+```bash
+git status -sb        # -s kisa, -b dal bilgisini de goster
+```
+
+| Çıktı | Anlamı | Ne yapılır |
+|---|---|---|
+| `## main...origin/main` | Aynı noktadalar | Bir şey yok |
+| `## main...origin/main [ahead 3]` | Sende 3 commit fazla, GitHub'da yok | `git push` |
+| `## main...origin/main [behind 2]` | GitHub'da 2 commit var, sende yok | `git pull` |
+| `## main...origin/main [ahead 1, behind 2]` | İkisi de ayrışmış | `git pull` sonra `git push` |
+
+**`ahead` sayısı commit sayar, dosya değil.** 17 commit tek bir dosyaya da dokunmuş olabilir,
+21 dosyaya da. Neyin gideceğini görmek için:
+
+```bash
+git log --oneline origin/main..main      # push edilecek commit'ler
+git diff --stat origin/main..main        # push edilecek dosyalar ve satır sayilari
+```
+
+İki nokta (`..`) "şundan şuna kadar olan fark" demek. Sırası önemli:
+`origin/main..main` = "bende olup orada olmayanlar".
+
+**`git fetch` işaretçiyi tazeler, çalışma klasörüne dokunmaz.** `git pull` = `fetch` + `merge`.
+Tek kişilik repo'da `pull` genelde gereksizdir; başka bir makineden commit atmadıysan
+`origin/main` zaten senin bıraktığın yerdedir.
+
+## 11. Kimlik doğrulama — kim push edebilir
+
+Git'in kendisi kimlik bilmez. GitHub bilir. HTTPS ile push ederken GitHub **parola kabul
+etmez**; token ister.
+
+| Yöntem | Nerede durur | Bu projede |
+|---|---|---|
+| **Credential Manager** | Windows'un kimlik kasasında, kullanıcı hesabına bağlı | **PC'de kullanılan yöntem.** İlk push'ta tarayıcıdan giriş yapılır, sonrası sessizdir |
+| **PAT** (personal access token) | Elle saklanan uzun bir dize | Yedek yöntem. Süresi biter, yenilenir |
+| **SSH anahtarı** | `~/.ssh/id_ed25519` | Remote `git@github.com:...` biçiminde olsaydı bu kullanılırdı |
+| **Deploy key** | Tek repo'ya bağlı SSH anahtarı, hesaba bağlı değil | **Pi'ler bunu alacak** — sadece okuma (brief §4.7, §12.4) |
+
+**Pratik sonucu:** kimlik bilgisi Windows kullanıcı hesabının kasasında durduğu için, push
+sadece o oturumdan çıkar. Başka bir ortamdan (başka makine, sanal ortam, Claude'un eriştiği
+kabuk) çalıştırıldığında git şunu der:
+
+```
+fatal: could not read Username for 'https://github.com': terminal prompts disabled
+```
+
+Bu bir hata değil, beklenen davranış: **kasa taşınmaz.** Dosyaları düzenlemek ve commit'lemek
+her yerden yapılabilir, `push` PC'den yapılır.
+
+## 12. Orphan branch — 2026-09-02'de karşılaşıldı
+
+`andon-collector` içinde `master` adında ikinci bir dal vardı ve `main` ile **ortak atası
+yoktu**. Sebebi: repo hem yerelde `git init` ile hem GitHub'da "initialize with README" ile
+başlatılınca iki ayrı başlangıç noktası oluşur.
+
+Teşhis:
+
+```bash
+git merge-base master main
+# cikti yoksa: ortak ata yok -> orphan
+git log --oneline main..master        # master'da olup main'de olmayanlar
+git diff --stat master 61c3503        # icerikleri ayni mi (bos cikti = ayni)
+```
+
+Sonuç: `master`'ın tek commit'i, `main`'in ilk commit'i ile **birebir aynı içerikteydi** —
+sadece farklı hash. Silmek güvenliydi:
+
+```bash
+git branch -D master
+```
+
+`-d` birleşmemiş dalı silmeyi reddeder, `-D` zorlar. **`-D` kullanmadan önce her zaman
+`git log main..DAL` çalıştır** ve o dalda kaybolacak benzersiz bir şey olmadığını gör.
+
+**Genel kural:** repo'yu ya yerelde `git init` ile aç, ya GitHub'da boş (README'siz) aç.
+İkisini birden yaparsan bu durum çıkar.
+
+## 13. Push öncesi kontrol listesi
+
+Filoya çıkacak kod için alışkanlık hâline gelmeli:
+
+```bash
+git status -sb                          # temiz mi, kac commit ahead
+git diff --stat origin/main..main       # ne gidiyor
+git log --oneline origin/main..main     # hangi commit'ler
+cat .gitignore                          # secret bloğu yerinde mi
+grep -rniE "password|token|api[_-]?key|BEGIN .*PRIVATE KEY" . --include="*.py" --include="*.yaml"
+```
+
+Son satır **push edilmeden önce** çalışır. Bir secret bir kez GitHub'a gittiyse geçmişten
+silmek yetmez — o parolayı/anahtarı **değiştirmek** gerekir (brief §13.1). Private repo bunu
+değiştirmez: repo sonradan organizasyona taşınacak, erişen kişi sayısı artacak.
+
+Push'tan sonra doğrulama:
+
+```bash
+git status -sb                    # 'ahead' ifadesi kaybolmali
+git log --oneline -1 origin/main  # uzak dal artik yeni commit'te mi
+```
