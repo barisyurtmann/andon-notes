@@ -563,3 +563,81 @@ Duran makine testinde (`--freeze`) 7 başarılı okuma yapıldı, **sıfır kay�
 
 Mesaja `part_no` alanı eklendi. `counters.total` o okumadaki sayaç değeri olarak kalıyor —
 aynı okumadan gelen üç parçada üçü de aynı.
+
+---
+
+## Latched hafıza bulgusu ve kesinti kaydı — 2026-09-02 (akşam)
+
+Vendor klasörüne iki programlama manueli eklendi (DVP ve AS aileleri, ~23 MB'lık PDF'ler).
+DVP manuelinden aranan tek şey çıkarıldı: **hangi register'lar enerji kesilince korunuyor.**
+
+### Bulgu: D300 kalıcı değil
+
+DVP-SS2 hafıza haritası (manuel s. 2-5, artık `vendor-docs/OKUBENI.md`'de ve
+`ders-notlari/13`'te tablo halinde):
+
+| Aralık | Enerji kesilince |
+|---|---|
+| D0–D407, D600–D999, D3920–D4999 | **Silinir** |
+| D408–D599, D2000–D3919 | Korunur |
+| C224–C232 (32-bit sayaç), C112–C127 | Korunur |
+
+**Bench testini D300'de yaptık ve D300 silinen bölgede.** Test geçersiz değil — adres tabanını
+ve word sırasını kanıtladı, o kısım sağlam. Ama gerçek makinede üretim sayacı oraya konamaz:
+her elektrik kesintisinde sıfırlanır ve **Karar #3'ü (serbest akan totalizer) ihlal eder.**
+
+**Sayacın gerçek yeri:** `C224–C232` (zaten 32-bit, zaten sayaç, zaten kalıcı — dokuz tane)
+veya `D2000–D3919`. Brief §5.5 "mevcut C sayaçları kullanılabilirse duruş ihtiyacı düşer"
+diyordu; artık hangi C'lerin işe yaradığı belli.
+
+`machines.yaml`'a D300'ün üstüne büyük harfli bir uyarı yazıldı, adres bench referansı olarak
+duruyor.
+
+**Faz 0'da her makinede sorulacak üçüncü soru eklendi:** sayaç var mı, hangi register'da,
+**o register kalıcı bölgede mi?**
+
+### PLC tamponu fikri — tartışıldı, reddedildi
+
+PLC'de 300–500 word'lük dairesel tampon kurup Pi kesintisinde parça bilgilerini saklamak
+önerildi. Teknik olarak mümkün (D2000–D3919'da yer var), ama:
+
+- Zaman damgası konulamıyor — **DVP-SS2'de RTC yok.** Kurtardığı veri zaten eksik olurdu
+- 13 makinede ladder + planlı duruş; duruş bu projenin en kıt kaynağı (brief §5.5)
+- Kapsama 20 sn çevrimde sadece 33–55 dakika
+- En sık kesinti türünü (ağ) zaten yerel kuyruk çözüyor
+
+**Kapı kapalı değil:** sayaç rungu için zaten duruş alınacaksa tampon aynı pencerede eklenir,
+marjinal maliyet sıfıra yakın. Ayrı duruş istemeye değmez.
+
+### Kesinti kaydı eklendi — `state_store.py`
+
+Collector artık son okuduğu sayaç değerini diske yazıyor (`--state-dir`). Yeniden başladığında
+okuyor, farkı görüyor ve tek bir kayıt yazıyor.
+
+Simülatörde doğrulandı — collector 10 saniye kapalı tutuldu, makine üretmeye devam etti:
+
+```
+WARNING worker: SIM01: 11 part(s) were produced while the collector was down
+        (counter 1006 -> 1017). Their individual values are not recoverable.
+INFO    telemetry: SIM01  GAP parts=11  total=1017  state=2
+INFO    telemetry: SIM01  part=1018  total=1018  state=2
+```
+
+Adet kurtarıldı, eksiklik dürüstçe işaretlendi. Kurtarılamayan tek şey o 11 parçanın tek tek
+bilgileri — ve bu bir yazılım eksiği değil, PLC'nin parça geçmişi tutmamasının sonucu.
+
+Dosya atomik yazılıyor (`os.replace`), yani yazma ortasında elektrik kesilse bile yarım
+dosya kalmıyor. `--state-dir` verilmezse özellik kapalı; systemd unit'i `/var/lib/andon/state`
+kullanıyor (salt okunur kökte yazılabilir tek yer).
+
+### Karar B kesinleşti
+
+**Yerel kuyruk (store-and-forward) kesin yapılacak.** MQTT ile birlikte yazılacak — şu an
+gönderilecek bir yer olmadığı için kuyruk anlamsız.
+
+### Hâlâ açık
+
+- Gerçek PLC ile hiç denenmedi
+- `state` register adresi belirsiz (brief §11 madde 16)
+- AS manueli işlenmedi — Grup 3 / AS218TX için gerekli
+- MQTT ve yerel kuyruk yazılmadı

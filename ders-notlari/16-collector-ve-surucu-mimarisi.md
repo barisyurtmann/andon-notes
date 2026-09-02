@@ -293,3 +293,55 @@ paylaşırsa, bir gün simülatör saha ekranında görünür.
 - `08-systemd-servisler.md` — servisi açılışta başlatmak
 - `06-yaml-ve-config.md` — YAML sözdizimi
 - `10-mqtt.md` — sink'e eklenecek katman
+
+## 12. Kesinti kaydı — collector kapalıyken üretilenler
+
+Collector kapalıyken (Pi bozuldu, servis yeniden başladı, kablo çıktı) PLC saymaya devam
+eder. Collector geri geldiğinde sayaç 1006 değil 1017'dir. Aradaki **11 parça** hiçbir yerde
+görünmez.
+
+**Çözüm:** collector son okuduğu sayaç değerini küçük bir dosyaya yazar (`--state-dir`).
+Yeniden başladığında okur, farkı görür ve **tek bir kayıt** yazar:
+
+```
+WARNING  SIM01: 11 part(s) were produced while the collector was down
+         (counter 1006 -> 1017). Their individual values are not recoverable.
+INFO     SIM01  GAP parts=11  total=1017  state=2
+```
+
+Mesajda `part_no` yerine `gap` bloğu bulunur:
+
+```json
+{"machine_id": "SIM01", "gap": {"parts": 11, "since": "2026-09-02T13:42:39.320Z"},
+ "counters": {"total": 1017}, "state": 2}
+```
+
+**Kurtarılan:** adet. PLC'nin totalizer'ı çalışmaya devam ettiği için sayı doğru.
+
+**Kurtarılamayan:** o 11 parçanın tek tek bilgileri. Durumları, arıza kodları, çevrim
+süreleri sadece üretildikleri anda vardı. **PLC toplam tutar, parça geçmişi tutmaz.**
+
+### Neden PLC'ye tampon (buffer) koymuyoruz
+
+2026-09-02'de tartışıldı ve reddedildi. PLC'de 300–500 word'lük bir dairesel tampon kurup
+son N parçanın bilgisini saklamak teknik olarak mümkün (latched alan D2000–D3919'da yer var).
+Ama:
+
+| | Yerel kuyruk (yazılım) | PLC tamponu |
+|---|---|---|
+| Çözdüğü arıza | Ağ koptu — **sık** | Pi öldü — **nadir** |
+| Maliyet | Kod, duruş yok | **13 makinede ladder + planlı duruş** |
+| Kapsama | Sınırsız | 20 sn çevrimde 33–55 dakika |
+| Zaman damgası | Tam | **Yok — DVP-SS2'de RTC yok** |
+
+Kurtardığı veri zaten zaman damgasız, yani eksik. Ve en sık kesinti türünü (ağ) zaten yerel
+kuyruk çözüyor. Duruş penceresi bu projenin en kıt kaynağı (brief §5.5).
+
+**Kapı kapalı değil:** sayaç rungu için zaten duruş alınacak makineler varsa, tampon aynı
+duruşta eklenirse marjinal maliyeti sıfıra yakın. Ama ayrı duruş istemeye değmez.
+
+### Sayaç sıfırlanması kesinti sırasında olursa
+
+Geçen süre bilinmediği için (Pi 5'te RTC yok, saat yeniden başlarken yanlış olabilir) makul
+bir tavan hesaplanamaz. O yüzden test künttür: fark sayaç aralığının yarısından büyükse
+üretim sayılmaz, kesinti kaydı `parts: null` ve `counter_reset_across_restart` notuyla yazılır.

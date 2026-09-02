@@ -334,3 +334,52 @@ delta = (yeni - eski) & 0xFFFFFFFF
 `& 0xFFFFFFFF` = "sadece alttaki 32 biti al". Negatif çıkan farkı otomatik olarak doğru
 pozitif değere çevirir. Çıplak `yeni - eski` yazarsan rollover anında büyük negatif bir sayı
 alırsın ve o vardiyanın üretimi eksi görünür.
+
+## DVP-SS2 hafıza haritası — latched vs non-latched
+
+**Kaynak:** `vendor-docs/DELTA_IA-PLC_DVP-ES2-EX2-EC5-SS2-SA2-SX2-SE-SE2-TP_PM_EN_20251231.pdf`,
+sayfa 2-5. Doğrulandı 2026-09-02.
+
+PLC'nin D register'larının hepsi aynı değil. Bazıları **enerji kesilince silinir**, bazıları
+korunur. Buna *latched* (kalıcı) denir.
+
+### DVP-SS2 (toplam 5000 D register)
+
+| Aralık | Word | Enerji kesilince |
+|---|---|---|
+| D0–D407 | 408 | **Silinir** |
+| D600–D999 | 400 | **Silinir** |
+| D3920–D4999 | 1080 | **Silinir** |
+| **D408–D599** | 192 | **Korunur** |
+| **D2000–D3919** | 1920 | **Korunur** |
+| D1000–D1999 | 1000 | Özel register'lar; bir kısmı korunur |
+
+### C sayaçları
+
+| Aralık | Ne | Enerji kesilince |
+|---|---|---|
+| C0–C111, C128–C199 | 16-bit | Silinir |
+| **C112–C127** | 16-bit | **Korunur** |
+| C200–C223 | 32-bit | Silinir |
+| **C224–C232** | **32-bit** | **Korunur** |
+
+### Bu neden önemli — projedeki karşılığı
+
+Brief Karar #3: *"Sayaçlar serbest akan totalizer olmalı, PLC'den asla sıfırlanmaz."*
+
+**Silinen bir bölgeye konan sayaç bu şartı sağlayamaz.** Her elektrik kesintisinde sıfırlanır;
+collector bunu `counter_reset_suspected` olarak yakalar ama üretim sayısı yine de kopar.
+
+Bench testini `D300`'de yaptık — ve D300 **silinen bölgede.** Test geçerli (adres tabanını ve
+word sırasını kanıtladı), ama gerçek makinede sayaç oraya konamaz.
+
+**Üretim sayacının gideceği yer:**
+
+1. **C224–C232** — en doğal seçim. Zaten 32-bit, zaten sayaç, zaten kalıcı. Dokuz tane var.
+2. **D2000–D3919** — sayacı MOV ile buraya taşırsan da olur. 1920 word, bol yer.
+
+**Faz 0'da her makinede sorulacak soru:** bu makinede zaten bir sayaç var mı, hangi
+register'da, ve o register kalıcı bölgede mi? Üçüncü soru en kolay unutulanı.
+
+> **Genel kural:** başka bir PLC ailesi eklendiğinde (AS serisi, Siemens) latched aralık
+> **o aile için ayrıca** bakılır. Bu tablo sadece DVP-SS2'ye aittir.
