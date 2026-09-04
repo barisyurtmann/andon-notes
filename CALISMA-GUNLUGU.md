@@ -678,3 +678,58 @@ cd ~/andon-lab
 Gerekçe: venv'in nerede olduğu önemsizleşir, yanlış Python'la çalışma ihtimali sıfırlanır,
 ve systemd zaten bunu yapmak zorunda (servisin kabuğu yok). Ders notu 09'a venv bölümü
 eklendi, 16'ya kod okuma sırası ve komut anatomisi eklendi.
+
+---
+
+## Klasör düzeni ayrıldı: ayar / motor — 2026-09-04
+
+Önce hepsi tek klasördeydi. `machines.yaml` — değiştirilecek **tek** dosya — yedi kod
+dosyasının arasında duruyordu. "Sadece şuna dokunacaksın" demek, o dosya motorla aynı rafta
+dururken işe yaramıyor.
+
+Yeni düzen:
+
+```
+andon-collector/
+├── machines.yaml       <- değiştirilen
+├── collector.py        <- çalıştırılan
+├── KULLANIM.md         <- okunan
+├── andon/              <- motor: config, counters, worker, sink, clock,
+│                          state_store, drivers/
+├── tools/
+└── systemd/
+```
+
+**Pano karşılığı:** parametre ekranı kapağın üstünde, kontaktörler kapağın arkasında.
+
+### Reddedilen öneri: `drivers/` içini bölmek
+
+Öneri `drivers/` içinde "PLC" ve "haberleşme" diye ayrı klasörlerdi. İki sebeple yapılmadı:
+
+1. **Ayrım işlemiyor.** `modbus_serial.py` zaten ikisinin birleşimi — Delta DVP ile RS-485
+   üzerinden Modbus konuşuyor. Tek işi var, ikiye bölünemez.
+2. **Bölünecek bir şey yok.** Klasördeki beş dosyanın hepsi Modbus. Mantıklı bölünme
+   protokole göre olurdu (`modbus/`, `s7/`, `gpio/`) ve şu an tek protokol var. Üçüncü
+   protokol geldiğinde doğal olarak gruplanır.
+
+Sezgi doğruydu, sadece bir klasör aşağıya bakıyordu. Asıl karışıklık ana dizindeydi.
+
+### Ne değişti, ne değişmedi
+
+Import satırları güncellendi: paket dışından `from andon.config import ...`, paket içinden
+göreli (`from .counters import ...`). **Davranış hiç değişmedi.** Regression testleri:
+
+| Test | Sonuç |
+|---|---|
+| `--check` config doğrulama | ✅ |
+| Parça kaydı (saniyede 3 parça) | ✅ `part=1004, 1005, 1006` |
+| Kesinti kaydı (8 sn kapalı) | ✅ `GAP parts=27`, sonra normal devam |
+| Eski sürücü adı uyarısı | ✅ |
+| `__pycache__` kirliliği | ✅ yok |
+
+Log etiketleri de iyileşti: artık `andon.worker` yazıyor, hangi modülden geldiği belli.
+
+`collector.py` kökte kaldığı için `systemd` servis dosyası ve `scp` komutları değişmedi.
+
+**Şimdi yapmak bedavaydı** — Pi'de henüz kurulu değil, üretimde hiçbir şey yok. Sonra
+yapılsaydı 16 Pi'de yol değişikliği olurdu.

@@ -19,6 +19,41 @@ machines.yaml ──▶ config.py ──▶ worker (makine başına 1 thread)
                                    └─ sink.emit()        journal / JSONL / (ileride MQTT)
 ```
 
+## 1.1 Klasör düzeni — kim neye dokunur
+
+```
+andon-collector/
+├── machines.yaml       <- değiştirilen tek dosya
+├── collector.py        <- çalıştırılan program
+├── KULLANIM.md
+│
+├── andon/              <- MOTOR, normal işleyişte dokunulmaz
+│   ├── config.py
+│   ├── counters.py
+│   ├── worker.py
+│   ├── sink.py
+│   ├── clock.py
+│   ├── state_store.py
+│   └── drivers/
+│
+├── tools/              <- elle çalıştırılan yardımcılar
+└── systemd/
+```
+
+**Neden böyle ayrıldı (2026-09-04).** Önce hepsi tek klasördeydi: `machines.yaml`
+yedi kod dosyasının arasında kayboluyordu. "Sadece şu dosyaya dokunacaksın" demek,
+o dosya motorla aynı rafta dururken işe yaramıyor.
+
+**Pano karşılığı:** parametre ekranı kapağın üstünde, kontaktörler kapağın arkasında.
+
+> **`drivers/` içi neden alt klasörlere bölünmedi?** Bölünecek bir şey yok — beş dosyanın
+> **hepsi Modbus.** Mantıklı bölünme protokole göre olurdu (`modbus/`, `s7/`, `gpio/`) ve
+> şu an tek protokol var. Üçüncü protokol geldiğinde doğal olarak gruplanır. Tek protokol
+> için klasör açmak, tek makine için hat kurmaktır.
+>
+> Ayrıca "PLC" ve "haberleşme" diye bölmek işlemez: `modbus_serial.py` zaten ikisinin
+> birleşimidir — Delta DVP ile RS-485 üzerinden Modbus konuşur, tek işi vardır.
+
 ## 2. Sürücü (driver) mimarisi — Karar #22
 
 **Problem:** hatta en az üç farklı PLC ailesi var ve ileride başka markalar da gelecek
@@ -40,7 +75,7 @@ konuşulduğunu **bilmez.**
 girişin ortalamasını al" işini yapar; girişin 4-20 mA mı yoksa 0-10 V mu olduğu bloğun
 umurunda değildir, o dönüşüm girişte halledilir. Sürücü, o giriş dönüşümüdür.
 
-**Pratik sonucu:** yeni bir PLC ailesi eklemek = `drivers/` klasörüne bir dosya + kayıt
+**Pratik sonucu:** yeni bir PLC ailesi eklemek = `andon/drivers/` klasörüne bir dosya + kayıt
 tablosuna bir satır. Ana servise dokunulmaz. Yeni bir **makine** eklemek ise sadece
 `machines.yaml`'a bir blok — kod hiç değişmez.
 
@@ -259,7 +294,7 @@ serbest"); **yasak olan mevcut bir alanın anlamını değiştirmektir.**
 
 ## 8. Sink — çıktının takıldığı yer
 
-`sink.py` bugün iki şey yapar: journal'a okunur bir satır yazar, istenirse dönen bir JSONL
+`andon/sink.py` bugün iki şey yapar: journal'a okunur bir satır yazar, istenirse dönen bir JSONL
 dosyasına da yazar.
 
 **MQTT buraya eklenecek.** Aynı üç metodu (`emit`, `close`) uygulayan bir sınıf daha olacak,
@@ -371,13 +406,13 @@ Hepsini birden açma. Bu sırayla, birer birer:
 | Sıra | Dosya | Neden önce bu |
 |---|---|---|
 | 1 | `machines.yaml` | Kod değil, ayar. Neyin ayarlanabildiğini görürsün |
-| 2 | `counters.py` | En önemli mantık, en az bağımlılık |
-| 3 | `drivers/base.py` | Çok kısa. Bir sürücünün sadece 3 şey bilmesi gerektiğini gösterir |
-| 4 | `drivers/modbus_serial.py` | Gerçek PLC konuşması. Zaten bildiğin Modbus |
-| 5 | `worker.py` | Ana döngü. `_poll_once` fonksiyonuna bak |
-| 6 | `sink.py` | Kaydın nasıl oluştuğu |
+| 2 | `andon/counters.py` | En önemli mantık, en az bağımlılık |
+| 3 | `andon/drivers/base.py` | Çok kısa. Bir sürücünün sadece 3 şey bilmesi gerektiğini gösterir |
+| 4 | `andon/drivers/modbus_serial.py` | Gerçek PLC konuşması. Zaten bildiğin Modbus |
+| 5 | `andon/worker.py` | Ana döngü. `_poll_once` fonksiyonuna bak |
+| 6 | `andon/sink.py` | Kaydın nasıl oluştuğu |
 | 7 | `collector.py` | Her şeyi birbirine bağlayan yer |
-| — | `config.py`, `clock.py`, `state_store.py` | Merak edince |
+| — | `andon/config.py`, `andon/clock.py`, `andon/state_store.py` | Merak edince |
 
 **Her dosyanın en üstünde üçlü tırnak (`"""`) içinde bir açıklama var** — ne yaptığını ve
 **neden öyle yaptığını** anlatır. Kodun kendisinden önce onu oku. `#` ile başlayan satırlar
@@ -396,12 +431,12 @@ da açıklamadır, çalışmaz.
 ### Program başlayınca ne oluyor
 
 1. Ayarları oku (`collector.py`)
-2. `machines.yaml`'ı oku **ve kontrol et** (`config.py`) — hata varsa burada durur
+2. `machines.yaml`'ı oku **ve kontrol et** (`andon/config.py`) — hata varsa burada durur
 3. `--check` verilmişse çık; port açılmaz
-4. Çıktının nereye gideceğini kur (`sink.py`)
+4. Çıktının nereye gideceğini kur (`andon/sink.py`)
 5. `boot_id` üret — her başlatmada değişen rastgele altı karakter
-6. Saat doğru mu bak (`clock.py`)
-7. Her makine için bir işçi başlat (`worker.py`)
+6. Saat doğru mu bak (`andon/clock.py`)
+7. Her makine için bir işçi başlat (`andon/worker.py`)
 
 ### Her saniye ne oluyor
 
@@ -410,9 +445,9 @@ Ladder'daki tarama çevrimi gibi düşün:
 1. **Bağlı mıyım?** Değilse bağlan; olmazsa 1, 2, 4, 8… saniye bekle (backoff)
 2. **Oku** — her alan için bir istek; 32-bit sayacın iki register'ı **tek istekte**
 3. **Birleştir** — `[2, 1]` → `(1 × 65536) + 2 = 65538`
-4. **Fark hesapla** (`counters.py`)
+4. **Fark hesapla** (`andon/counters.py`)
 5. **Kayıt yaz** — 3 parça çıktıysa 3 satır, hiç çıkmadıysa hiçbir şey
-6. **Sayacı diske kaydet** (`state_store.py`)
+6. **Sayacı diske kaydet** (`andon/state_store.py`)
 7. **Bir sonraki saniyeye kadar uyu** — sabit periyot, kaymaz
 
 > **Kod okumadan iş yapmak için:** `andon-collector/KULLANIM.md`. Ne değiştirmek
